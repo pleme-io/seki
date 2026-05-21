@@ -30,6 +30,7 @@ pub mod lang;
 pub mod nix_shell;
 pub mod rust;
 pub mod shikumi_tier;
+pub mod tend;
 
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
@@ -118,6 +119,7 @@ pub struct SekiConfig {
     // --- Pleme-io-native modules (Tier 1 — ship now) ---
     pub shikumi_tier: shikumi_tier::ShikumiTierConfig,
     pub caixa: caixa::CaixaConfig,
+    pub tend: tend::TendConfig,
 }
 
 impl Default for SekiConfig {
@@ -200,6 +202,7 @@ impl SekiConfig {
 
             shikumi_tier: shikumi_tier::ShikumiTierConfig::default(),
             caixa: caixa::CaixaConfig::default(),
+            tend: tend::TendConfig::default(),
         }
     }
 
@@ -268,6 +271,7 @@ impl SekiConfig {
 
             shikumi_tier: shikumi_tier::ShikumiTierConfig::bare(),
             caixa: caixa::CaixaConfig::bare(),
+            tend: tend::TendConfig::bare(),
         }
     }
 }

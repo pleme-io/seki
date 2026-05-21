@@ -319,6 +319,10 @@ pub fn blzsh_parity_config() -> SekiConfig {
         // cwd sits inside a caixa-typed repo. Nord-frost blue signals
         // "this is a pleme-io SDLC-typed repo" at a glance.
         caixa: seki_core::config::caixa::CaixaConfig::default(),
+        // tend surfaces workspace status — clean / N dirty across
+        // every configured workspace. Nord green/yellow/red tier the
+        // count so operators see drift before kicking off work.
+        tend: seki_core::config::tend::TendConfig::default(),
     }
 }
 

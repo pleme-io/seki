@@ -22,6 +22,7 @@ pub mod hostname;
 pub mod nix_shell;
 pub mod rust;
 pub mod shikumi_tier;
+pub mod tend;
 
 /// Build a registry containing every enabled module configured in
 /// `cfg`. Modules with `enabled = false` are omitted.
@@ -60,6 +61,9 @@ pub fn default_registry(cfg: &SekiConfig) -> ModuleRegistry {
     }
     if cfg.caixa.enabled {
         reg.register(caixa::CaixaModule::new(cfg.caixa.clone()));
+    }
+    if cfg.tend.enabled {
+        reg.register(tend::TendModule::new(cfg.tend.clone()));
     }
     reg
 }
