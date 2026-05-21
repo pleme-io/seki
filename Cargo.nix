@@ -678,12 +678,57 @@ rec {
         ];
 
       };
+      "irodori" = rec {
+        crateName = "irodori";
+        version = "0.1.0";
+        edition = "2024";
+        sha256 = "07nbryqvivbpg0gw9sbb8c8lbhvmrp1pcmlr6w7nq68jry44ph8d";
+        dependencies = [
+          {
+            name = "serde";
+            packageId = "serde";
+            features = [ "derive" ];
+          }
+        ];
+
+      };
       "is_terminal_polyfill" = rec {
         crateName = "is_terminal_polyfill";
         version = "1.70.2";
         edition = "2021";
         sha256 = "15anlc47sbz0jfs9q8fhwf0h3vs2w4imc030shdnq54sny5i7jx6";
         features = {
+        };
+        resolvedDefaultFeatures = [ "default" ];
+      };
+      "ishou-tokens" = rec {
+        crateName = "ishou-tokens";
+        version = "0.1.0";
+        edition = "2024";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/pleme-io/ishou";
+          rev = "befd51e17b2b55ce480c8f62e0d7a41fa4d2a3aa";
+          sha256 = "1vrfyvmixbrl80kj03r3j31914h23hfs8nx2m05y5islks9gg0wj";
+        };
+        libName = "ishou_tokens";
+        dependencies = [
+          {
+            name = "irodori";
+            packageId = "irodori";
+          }
+          {
+            name = "serde";
+            packageId = "serde";
+            features = [ "derive" ];
+          }
+          {
+            name = "serde_json";
+            packageId = "serde_json";
+          }
+        ];
+        features = {
+          "wgpu" = [ "dep:wgpu-types" ];
         };
         resolvedDefaultFeatures = [ "default" ];
       };
@@ -1241,6 +1286,10 @@ rec {
         ];
         dependencies = [
           {
+            name = "ishou-tokens";
+            packageId = "ishou-tokens";
+          }
+          {
             name = "serde";
             packageId = "serde";
             features = [ "derive" ];
@@ -1286,6 +1335,14 @@ rec {
             name = "serde";
             packageId = "serde";
             features = [ "derive" ];
+          }
+          {
+            name = "serde_json";
+            packageId = "serde_json";
+          }
+          {
+            name = "serde_yaml";
+            packageId = "serde_yaml";
           }
           {
             name = "thiserror";

@@ -20,14 +20,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ShigotoConfig {
     pub enabled: bool,
-    /// Format string. Substitutions: `$running`, `$pending`, `$status`.
     pub format: String,
-    /// Style applied when `running + pending > 0`. Nord-aurora orange.
     pub active_style: StyleSpec,
-    /// Style applied when both zero. Nord-aurora green.
     pub idle_style: StyleSpec,
-    /// HTTP base URL. Empty disables. `"$env"` reads `SHIGOTO_ADDR`
-    /// (default `http://127.0.0.1:38830`).
     pub addr: String,
     pub snapshot_path: String,
     pub command_timeout_ms: u64,

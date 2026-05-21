@@ -224,10 +224,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "irodori"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0dc14b88cf12196c0f37995676c3cd75c34511436be9c41f7877edb8b1cfcb1e"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "is_terminal_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
+
+[[package]]
+name = "ishou-tokens"
+version = "0.1.0"
+source = "git+https://github.com/pleme-io/ishou#befd51e17b2b55ce480c8f62e0d7a41fa4d2a3aa"
+dependencies = [
+ "irodori",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "itoa"
@@ -423,6 +442,7 @@ dependencies = [
 name = "seki-core"
 version = "0.1.0"
 dependencies = [
+ "ishou-tokens",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -437,6 +457,8 @@ version = "0.1.0"
 dependencies = [
  "seki-core",
  "serde",
+ "serde_json",
+ "serde_yaml",
  "thiserror",
 ]
 
