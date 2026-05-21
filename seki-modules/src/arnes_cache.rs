@@ -72,7 +72,10 @@ impl Module for ArnesCacheModule {
         // 1. Cache fast-path.
         let now = Instant::now();
         let ttl = Duration::from_secs(self.cfg.cache_ttl_secs);
-        let cached = self.cache.lock().ok().and_then(|g| g.copied());
+        let cached: Option<CachedRate> = match self.cache.lock() {
+            Ok(g) => *g,
+            Err(_) => None,
+        };
         if let Some(entry) = cached {
             if now.duration_since(entry.captured_at) < ttl {
                 return Ok(Some(build_segment(&self.cfg, entry.rate, false)));
