@@ -315,6 +315,10 @@ pub fn blzsh_parity_config() -> SekiConfig {
         // ON so operators see tier overrides instantly — Nord-aurora
         // yellow signals "override in effect".
         shikumi_tier: seki_core::config::shikumi_tier::ShikumiTierConfig::default(),
+        // caixa surfaces the current repo's caixa.lisp kind when the
+        // cwd sits inside a caixa-typed repo. Nord-frost blue signals
+        // "this is a pleme-io SDLC-typed repo" at a glance.
+        caixa: seki_core::config::caixa::CaixaConfig::default(),
     }
 }
 

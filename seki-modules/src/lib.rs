@@ -11,6 +11,7 @@
 
 use seki_core::{SekiConfig, module::ModuleRegistry};
 
+pub mod caixa;
 pub mod cmd_duration;
 pub mod custom;
 pub mod directory;
@@ -56,6 +57,9 @@ pub fn default_registry(cfg: &SekiConfig) -> ModuleRegistry {
     // ── Pleme-io-native segments ───────────────────────────────
     if cfg.shikumi_tier.enabled {
         reg.register(shikumi_tier::ShikumiTierModule::new(cfg.shikumi_tier.clone()));
+    }
+    if cfg.caixa.enabled {
+        reg.register(caixa::CaixaModule::new(cfg.caixa.clone()));
     }
     reg
 }

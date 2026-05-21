@@ -16,6 +16,7 @@
 //! `prescribed_default()` (in the `TieredConfig` impl in
 //! seki-shikumi) delegates to [`SekiConfig::blzsh_parity`].
 
+pub mod caixa;
 pub mod character;
 pub mod cmd_duration;
 pub mod custom;
@@ -116,6 +117,7 @@ pub struct SekiConfig {
 
     // --- Pleme-io-native modules (Tier 1 — ship now) ---
     pub shikumi_tier: shikumi_tier::ShikumiTierConfig,
+    pub caixa: caixa::CaixaConfig,
 }
 
 impl Default for SekiConfig {
@@ -197,6 +199,7 @@ impl SekiConfig {
             status: disabled::DisabledModuleConfig::default(),
 
             shikumi_tier: shikumi_tier::ShikumiTierConfig::default(),
+            caixa: caixa::CaixaConfig::default(),
         }
     }
 
@@ -264,6 +267,7 @@ impl SekiConfig {
             status: disabled::DisabledModuleConfig::bare(),
 
             shikumi_tier: shikumi_tier::ShikumiTierConfig::bare(),
+            caixa: caixa::CaixaConfig::bare(),
         }
     }
 }
