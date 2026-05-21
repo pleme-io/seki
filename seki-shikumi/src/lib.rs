@@ -8,13 +8,14 @@
 //! - `bare()` → [`seki_core::SekiConfig::bare`] (zero opinions)
 //! - `discovered()` → default-of-`bare` overlaid with auto-detect
 //!   (M1: detect-helpers TBD; today returns `bare`)
-//! - `prescribed_default()` → [`SekiConfig::default`] (the fleet
-//!   pleme-io look: nord-tinted palette + nerd-font glyphs already
-//!   baked into each per-segment `Default` impl)
+//! - `prescribed_default()` → [`blzsh_parity::blzsh_parity_config`]
+//!   (the M3 deliverable — exact match to blzsh's starship.toml)
 //! - `extend(base)` → full replacement (default trait impl).
 
 use seki_core::SekiConfig;
 use shikumi::TieredConfig;
+
+pub mod blzsh_parity;
 
 /// Newtype wrapper so we can `impl TieredConfig` from this crate
 /// without touching seki-core. The renderer accepts a borrowed
@@ -50,7 +51,10 @@ impl TieredConfig for TieredSekiConfig {
     }
 
     fn prescribed_default() -> Self {
-        Self(SekiConfig::default())
+        // M3: prescribed default IS blzsh-parity. Operators
+        // switching from blzsh → frostmourne (default-tier seki)
+        // see the exact same Nord-snowflake prompt.
+        Self(blzsh_parity::blzsh_parity_config())
     }
 }
 
@@ -74,14 +78,23 @@ mod tests {
     }
 
     #[test]
-    fn prescribed_default_enables_five_modules() {
+    fn prescribed_default_is_blzsh_parity() {
         let c = TieredSekiConfig::prescribed_default().0;
-        assert_eq!(c.prompt_order.len(), 5);
-        assert!(c.directory.enabled);
+        // blzsh keeps these enabled
+        assert!(c.character.enabled);
         assert!(c.git_branch.enabled);
         assert!(c.git_status.enabled);
-        assert!(c.rust.enabled);
+        assert!(c.hostname.enabled);
+        assert!(c.directory.enabled);
+        assert!(c.cmd_duration.enabled);
         assert!(c.nix_shell.enabled);
+        // blzsh keeps these disabled
+        assert!(!c.rust.enabled);
+        assert!(!c.kubernetes.enabled);
+        assert!(!c.username.enabled);
+        // blzsh order
+        assert_eq!(c.prompt_order.first().map(String::as_str), Some("nix_shell"));
+        assert_eq!(c.prompt_order.last().map(String::as_str), Some("character"));
     }
 
     #[test]
