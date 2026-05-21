@@ -110,7 +110,7 @@ pub fn resolve_count(
         }
     }
     let xdg = xdg_config_home?;
-    let count = count_known_dirs(xdg, known_components);
+    let count = count_known_dirs(xdg.to_path_buf(), known_components);
     if count == 0 {
         None
     } else {
