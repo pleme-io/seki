@@ -323,6 +323,41 @@ pub fn blzsh_parity_config() -> SekiConfig {
         // every configured workspace. Nord green/yellow/red tier the
         // count so operators see drift before kicking off work.
         tend: seki_core::config::tend::TendConfig::default(),
+
+        // ── Pleme-io-native (M3 Tier 2) ───────────────────────
+        // shikumi_config — validated tier per app, probes
+        // `<app> config-show <tier>` end-to-end. Default ON;
+        // probe failures render to silent absence.
+        shikumi_config: seki_core::config::shikumi_config::ShikumiConfigConfig::default(),
+        // tear / vigy / fleet_node / cofre_tier — opt-in by default;
+        // operators flip `enabled = true` once their fleet posture
+        // makes the segment meaningful.
+        tear: seki_core::config::tear::TearConfig::default(),
+        vigy: seki_core::config::vigy::VigyConfig::default(),
+        fleet_node: seki_core::config::fleet_node::FleetNodeConfig::default(),
+        cofre_tier: seki_core::config::cofre_tier::CofreTierConfig::default(),
+
+        // ── Pleme-io-native (M3 Tier 3 — opt-in) ──────────────
+        // Tier 3 segments cost > 0 per render (HTTP probe / subprocess /
+        // fleet-wide git ls-remote / Unix socket). All disabled by
+        // default — the blzsh-parity prompt's render budget is
+        // preserved. Operators flip `enabled = true` per-segment once
+        // the corresponding fleet primitive is in use.
+        shigoto: seki_core::config::shigoto::ShigotoConfig::default(),
+        tatara_workload: seki_core::config::tatara_workload::TataraWorkloadConfig::default(),
+        kindling_posture: seki_core::config::kindling_posture::KindlingPostureConfig::default(),
+        nix_flake_drift: seki_core::config::nix_flake_drift::NixFlakeDriftConfig::default(),
+        mado_session: seki_core::config::mado_session::MadoSessionConfig::default(),
+
+        // ── Pleme-io-native (M3 Tier 4 — substrate-themed) ───
+        ishou_theme: seki_core::config::ishou_theme::IshouThemeConfig::default(),
+        stylix: seki_core::config::stylix::StylixConfig::default(),
+        blackmatter: seki_core::config::blackmatter::BlackmatterConfig::default(),
+
+        // ── Pleme-io-native (M3 Tier 5 — observability) ──────
+        kasou_vm: seki_core::config::kasou_vm::KasouVmConfig::default(),
+        engenho: seki_core::config::engenho::EngenhoConfig::default(),
+        arnes_cache: seki_core::config::arnes_cache::ArnesCacheConfig::default(),
     }
 }
 

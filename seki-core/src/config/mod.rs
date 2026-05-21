@@ -16,21 +16,37 @@
 //! `prescribed_default()` (in the `TieredConfig` impl in
 //! seki-shikumi) delegates to [`SekiConfig::blzsh_parity`].
 
+pub mod arnes_cache;
+pub mod blackmatter;
 pub mod caixa;
 pub mod character;
 pub mod cmd_duration;
+pub mod cofre_tier;
 pub mod custom;
 pub mod directory;
 pub mod disabled;
+pub mod engenho;
 pub mod env_var;
+pub mod fleet_node;
 pub mod git_branch;
 pub mod git_status;
 pub mod hostname;
+pub mod ishou_theme;
+pub mod kasou_vm;
+pub mod kindling_posture;
 pub mod lang;
+pub mod mado_session;
+pub mod nix_flake_drift;
 pub mod nix_shell;
 pub mod rust;
+pub mod shigoto;
+pub mod shikumi_config;
 pub mod shikumi_tier;
+pub mod stylix;
+pub mod tatara_workload;
+pub mod tear;
 pub mod tend;
+pub mod vigy;
 
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
@@ -120,6 +136,30 @@ pub struct SekiConfig {
     pub shikumi_tier: shikumi_tier::ShikumiTierConfig,
     pub caixa: caixa::CaixaConfig,
     pub tend: tend::TendConfig,
+
+    // --- Pleme-io-native modules (Tier 2 — ship next) ---
+    pub shikumi_config: shikumi_config::ShikumiConfigConfig,
+    pub tear: tear::TearConfig,
+    pub vigy: vigy::VigyConfig,
+    pub fleet_node: fleet_node::FleetNodeConfig,
+    pub cofre_tier: cofre_tier::CofreTierConfig,
+
+    // --- Pleme-io-native modules (Tier 3 — opt-in, cost > 0) ---
+    pub shigoto: shigoto::ShigotoConfig,
+    pub tatara_workload: tatara_workload::TataraWorkloadConfig,
+    pub kindling_posture: kindling_posture::KindlingPostureConfig,
+    pub nix_flake_drift: nix_flake_drift::NixFlakeDriftConfig,
+    pub mado_session: mado_session::MadoSessionConfig,
+
+    // --- Pleme-io-native modules (Tier 4 — substrate-themed) ---
+    pub ishou_theme: ishou_theme::IshouThemeConfig,
+    pub stylix: stylix::StylixConfig,
+    pub blackmatter: blackmatter::BlackmatterConfig,
+
+    // --- Pleme-io-native modules (Tier 5 — observability) ---
+    pub kasou_vm: kasou_vm::KasouVmConfig,
+    pub engenho: engenho::EngenhoConfig,
+    pub arnes_cache: arnes_cache::ArnesCacheConfig,
 }
 
 impl Default for SekiConfig {
@@ -203,6 +243,26 @@ impl SekiConfig {
             shikumi_tier: shikumi_tier::ShikumiTierConfig::default(),
             caixa: caixa::CaixaConfig::default(),
             tend: tend::TendConfig::default(),
+
+            shikumi_config: shikumi_config::ShikumiConfigConfig::default(),
+            tear: tear::TearConfig::default(),
+            vigy: vigy::VigyConfig::default(),
+            fleet_node: fleet_node::FleetNodeConfig::default(),
+            cofre_tier: cofre_tier::CofreTierConfig::default(),
+
+            shigoto: shigoto::ShigotoConfig::default(),
+            tatara_workload: tatara_workload::TataraWorkloadConfig::default(),
+            kindling_posture: kindling_posture::KindlingPostureConfig::default(),
+            nix_flake_drift: nix_flake_drift::NixFlakeDriftConfig::default(),
+            mado_session: mado_session::MadoSessionConfig::default(),
+
+            ishou_theme: ishou_theme::IshouThemeConfig::default(),
+            stylix: stylix::StylixConfig::default(),
+            blackmatter: blackmatter::BlackmatterConfig::default(),
+
+            kasou_vm: kasou_vm::KasouVmConfig::default(),
+            engenho: engenho::EngenhoConfig::default(),
+            arnes_cache: arnes_cache::ArnesCacheConfig::default(),
         }
     }
 
@@ -272,6 +332,26 @@ impl SekiConfig {
             shikumi_tier: shikumi_tier::ShikumiTierConfig::bare(),
             caixa: caixa::CaixaConfig::bare(),
             tend: tend::TendConfig::bare(),
+
+            shikumi_config: shikumi_config::ShikumiConfigConfig::bare(),
+            tear: tear::TearConfig::bare(),
+            vigy: vigy::VigyConfig::bare(),
+            fleet_node: fleet_node::FleetNodeConfig::bare(),
+            cofre_tier: cofre_tier::CofreTierConfig::bare(),
+
+            shigoto: shigoto::ShigotoConfig::bare(),
+            tatara_workload: tatara_workload::TataraWorkloadConfig::bare(),
+            kindling_posture: kindling_posture::KindlingPostureConfig::bare(),
+            nix_flake_drift: nix_flake_drift::NixFlakeDriftConfig::bare(),
+            mado_session: mado_session::MadoSessionConfig::bare(),
+
+            ishou_theme: ishou_theme::IshouThemeConfig::bare(),
+            stylix: stylix::StylixConfig::bare(),
+            blackmatter: blackmatter::BlackmatterConfig::bare(),
+
+            kasou_vm: kasou_vm::KasouVmConfig::bare(),
+            engenho: engenho::EngenhoConfig::bare(),
+            arnes_cache: arnes_cache::ArnesCacheConfig::bare(),
         }
     }
 }
