@@ -1,0 +1,338 @@
+prompt_order:
+- nix_shell
+- env_var
+- custom
+- hostname
+- directory
+- git_branch
+- git_status
+- character
+right_format: ''
+continuation_prompt: '[❄](bold #5E81AC) '
+add_newline: false
+scan_timeout_ms: 100
+command_timeout_ms: 500
+character:
+  enabled: true
+  format: '$symbol '
+  success_symbol: '[❄](bold #88C0D0)'
+  error_symbol: '[❄](bold #BF616A)'
+  vicmd_symbol: '[❄](bold #A3BE8C)'
+  vimcmd_replace_one_symbol: '[❄](bold #B48EAD)'
+  vimcmd_replace_symbol: '[❄](bold #B48EAD)'
+  vimcmd_visual_symbol: '[❄](bold #EBCB8B)'
+  style: 'bold #88C0D0'
+directory:
+  enabled: true
+  format: '[$path]($style)'
+  truncation_length: 3
+  truncate_to_repo: true
+  truncation_symbol: …/
+  home_symbol: '~'
+  read_only: ' 󰰳'
+  read_only_style: '#BF616A'
+  style: 'bold #81A1C1'
+  suffix: ''
+git_branch:
+  enabled: true
+  format: ' [$symbol$branch]($style)'
+  symbol: ' '
+  style: '#A3BE8C'
+  truncation_length: 20
+  truncation_symbol: …
+  only_attached: false
+  prefix: ''
+  suffix: ''
+git_status:
+  enabled: true
+  format: '[$all_status$ahead_behind]($style) '
+  style: 'bold #EBCB8B'
+  stashed: $$
+  ahead: ⇡${count}
+  behind: ⇣${count}
+  diverged: ⇕${ahead_count}⇣${behind_count}
+  conflicted: =
+  deleted: ✘
+  renamed: »
+  modified: '!'
+  staged: +
+  untracked: '?'
+  up_to_date: ''
+  clean_symbol: ''
+  prefix: ''
+  suffix: ' '
+hostname:
+  enabled: true
+  ssh_only: false
+  trim_at: .
+  style: 'dimmed #88C0D0'
+  format: '[$hostname](dimmed $style) · '
+cmd_duration:
+  enabled: true
+  min_time: 2000
+  style: 'bold #D08770'
+  format: '[$duration]($style) '
+  show_milliseconds: false
+nix_shell:
+  enabled: true
+  format: '[$symbol]($style) '
+  symbol: ❄
+  style: 'bold #88C0D0'
+  impure_format: impure
+  pure_format: pure
+  unknown_format: nix
+  prefix: ''
+  suffix: ' '
+env_var:
+  entries:
+    TEAR_SESSION_NAME:
+      enabled: true
+      variable: TEAR_SESSION_NAME
+      default: ''
+      style: 'bold #88C0D0'
+      format: '[~ $env_value]($style) '
+    WORKSPACE:
+      enabled: true
+      variable: WORKSPACE
+      default: ''
+      style: dimmed italic
+      format: '[\[$env_value\]]($style) '
+custom:
+  entries:
+    tear_pane:
+      enabled: true
+      description: Truncated TEAR_PANE_ID inside a tear pane
+      command: printf "%s" "${TEAR_PANE_ID:0:6}"
+      when: '[ -n "$TEAR_PANE_ID" ]'
+      style: 'dimmed #88C0D0'
+      format: '[· $output]($style) '
+      ignore_timeout: true
+rust:
+  enabled: false
+  symbol: '🦀 '
+  style: bold red
+  detect_files:
+  - Cargo.toml
+  - rust-toolchain.toml
+  - rust-toolchain
+  detect_folders: []
+  prefix: 'via '
+  suffix: ' '
+golang:
+  enabled: false
+  symbol: ''
+  style: ''
+  detect_files: []
+  detect_folders: []
+  detect_extensions: []
+  format: ''
+  version_format: ''
+python:
+  enabled: false
+  symbol: ''
+  style: ''
+  detect_files: []
+  detect_folders: []
+  detect_extensions: []
+  format: ''
+  version_format: ''
+nodejs:
+  enabled: false
+  symbol: ''
+  style: ''
+  detect_files: []
+  detect_folders: []
+  detect_extensions: []
+  format: ''
+  version_format: ''
+ruby:
+  enabled: false
+  symbol: ''
+  style: ''
+  detect_files: []
+  detect_folders: []
+  detect_extensions: []
+  format: ''
+  version_format: ''
+lua:
+  enabled: false
+  symbol: ''
+  style: ''
+  detect_files: []
+  detect_folders: []
+  detect_extensions: []
+  format: ''
+  version_format: ''
+c:
+  enabled: false
+  symbol: ''
+  style: ''
+  detect_files: []
+  detect_folders: []
+  detect_extensions: []
+  format: ''
+  version_format: ''
+cmake:
+  enabled: false
+  symbol: ''
+  style: ''
+  detect_files: []
+  detect_folders: []
+  detect_extensions: []
+  format: ''
+  version_format: ''
+java:
+  enabled: false
+  symbol: ''
+  style: ''
+  detect_files: []
+  detect_folders: []
+  detect_extensions: []
+  format: ''
+  version_format: ''
+dart:
+  enabled: false
+  symbol: ''
+  style: ''
+  detect_files: []
+  detect_folders: []
+  detect_extensions: []
+  format: ''
+  version_format: ''
+elixir:
+  enabled: false
+  symbol: ''
+  style: ''
+  detect_files: []
+  detect_folders: []
+  detect_extensions: []
+  format: ''
+  version_format: ''
+elm:
+  enabled: false
+  symbol: ''
+  style: ''
+  detect_files: []
+  detect_folders: []
+  detect_extensions: []
+  format: ''
+  version_format: ''
+erlang:
+  enabled: false
+  symbol: ''
+  style: ''
+  detect_files: []
+  detect_folders: []
+  detect_extensions: []
+  format: ''
+  version_format: ''
+haskell:
+  enabled: false
+  symbol: ''
+  style: ''
+  detect_files: []
+  detect_folders: []
+  detect_extensions: []
+  format: ''
+  version_format: ''
+kotlin:
+  enabled: false
+  symbol: ''
+  style: ''
+  detect_files: []
+  detect_folders: []
+  detect_extensions: []
+  format: ''
+  version_format: ''
+nim:
+  enabled: false
+  symbol: ''
+  style: ''
+  detect_files: []
+  detect_folders: []
+  detect_extensions: []
+  format: ''
+  version_format: ''
+ocaml:
+  enabled: false
+  symbol: ''
+  style: ''
+  detect_files: []
+  detect_folders: []
+  detect_extensions: []
+  format: ''
+  version_format: ''
+perl:
+  enabled: false
+  symbol: ''
+  style: ''
+  detect_files: []
+  detect_folders: []
+  detect_extensions: []
+  format: ''
+  version_format: ''
+php:
+  enabled: false
+  symbol: ''
+  style: ''
+  detect_files: []
+  detect_folders: []
+  detect_extensions: []
+  format: ''
+  version_format: ''
+swift:
+  enabled: false
+  symbol: ''
+  style: ''
+  detect_files: []
+  detect_folders: []
+  detect_extensions: []
+  format: ''
+  version_format: ''
+zig:
+  enabled: false
+  symbol: ''
+  style: ''
+  detect_files: []
+  detect_folders: []
+  detect_extensions: []
+  format: ''
+  version_format: ''
+username:
+  enabled: false
+git_commit:
+  enabled: false
+git_state:
+  enabled: false
+git_metrics:
+  enabled: false
+fill:
+  enabled: false
+time:
+  enabled: false
+jobs:
+  enabled: false
+docker_context:
+  enabled: false
+kubernetes:
+  enabled: false
+terraform:
+  enabled: false
+aws:
+  enabled: false
+gcloud:
+  enabled: false
+package:
+  enabled: false
+conda:
+  enabled: false
+shell:
+  enabled: false
+shlvl:
+  enabled: false
+memory_usage:
+  enabled: false
+battery:
+  enabled: false
+status:
+  enabled: false
