@@ -1,0 +1,19 @@
+[package]
+name = "seki-shikumi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+description = "seki-shikumi — TieredConfig impl + tier loader for SekiConfig"
+
+[dependencies]
+seki-core.workspace = true
+shikumi.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true
+
+[lints]
+workspace = true

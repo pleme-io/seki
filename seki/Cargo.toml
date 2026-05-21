@@ -1,0 +1,27 @@
+[package]
+name = "seki"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+description = "seki (席) — typed prompt renderer CLI"
+
+[[bin]]
+name = "seki"
+path = "src/main.rs"
+
+[dependencies]
+seki-core.workspace = true
+seki-modules.workspace = true
+seki-shikumi.workspace = true
+shikumi.workspace = true
+clap.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true
+
+[lints]
+workspace = true
