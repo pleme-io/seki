@@ -160,10 +160,12 @@ mod tests {
 
     #[test]
     fn default_uses_nord_frost_palette() {
+        // Default-OFF per Tier 2 catalog (operator opts in once
+        // their fleet posture makes the segment meaningful).
         let cfg = TearConfig::default();
         assert_eq!(cfg.style.as_str(), "bold #88C0D0");
         assert_eq!(cfg.pane_id_len, 6);
-        assert!(cfg.enabled);
+        assert!(!cfg.enabled);
     }
 
     #[test]
