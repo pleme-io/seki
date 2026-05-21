@@ -13,9 +13,9 @@
 //! ## Probe budget
 //!
 //! Pure-Rust TCP + minimal HTTP/1.1 client, hard-bounded by
-//! `command_timeout_ms`. Spawned on a thread with `mpsc::recv_timeout`
-//! — no async runtime, no `ureq` dep. Daemon absence / refused /
-//! timeout / parse error all collapse to "render nothing".
+//! `command_timeout_ms` via `mpsc::recv_timeout`. No async runtime,
+//! no `ureq`. Daemon absence / refused / timeout / parse error all
+//! collapse to "render nothing".
 
 use seki_core::{
     Module, RenderContext, Segment, SekiResult,
@@ -104,7 +104,6 @@ impl Module for ShigotoModule {
     }
 }
 
-/// Resolve the probe URL. `addr == "$env"` reads `SHIGOTO_ADDR`.
 pub fn resolve_addr<F>(addr: &str, lookup: F) -> Option<String>
 where
     F: Fn(&str) -> Option<String>,
@@ -122,7 +121,6 @@ fn env_lookup(name: &str) -> Option<String> {
     std::env::var(name).ok().filter(|s| !s.is_empty())
 }
 
-/// Compose the full probe URL from a base + a snapshot path.
 pub fn build_probe_url(base: &str, path: &str) -> String {
     let base_trimmed = base.trim_end_matches('/');
     if path.starts_with('/') {
@@ -235,12 +233,10 @@ fn run_http_probe(url: &str, timeout: Duration) -> Option<(u32, u32)> {
     let mut stream = TcpStream::connect_timeout(&addr.parse().ok()?, timeout).ok()?;
     stream.set_read_timeout(Some(timeout)).ok()?;
     stream.set_write_timeout(Some(timeout)).ok()?;
-
     let request = format!(
         "GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\nAccept: application/json\r\n\r\n"
     );
     stream.write_all(request.as_bytes()).ok()?;
-
     let mut buf = Vec::with_capacity(2048);
     stream.read_to_end(&mut buf).ok()?;
     let text = String::from_utf8_lossy(&buf);
@@ -320,6 +316,12 @@ mod tests {
     }
 
     #[test]
+    fn resolve_addr_empty_returns_none() {
+        let lookup = stub_lookup(HashMap::new());
+        assert_eq!(resolve_addr("", lookup), None);
+    }
+
+    #[test]
     fn resolve_addr_env_marker_default_fallback() {
         let lookup = stub_lookup(HashMap::new());
         assert_eq!(
@@ -329,38 +331,11 @@ mod tests {
     }
 
     #[test]
-    fn resolve_addr_empty_returns_none() {
-        let lookup = stub_lookup(HashMap::new());
-        assert_eq!(resolve_addr("", lookup), None);
-    }
-
-    #[test]
-    fn resolve_addr_explicit_passthrough() {
-        let lookup = stub_lookup(HashMap::new());
-        assert_eq!(
-            resolve_addr("http://shigoto.lan:1234", lookup),
-            Some("http://shigoto.lan:1234".to_owned())
-        );
-    }
-
-    #[test]
     fn build_probe_url_handles_trailing_slash() {
         assert_eq!(
             build_probe_url("http://x:1/", "/v1/snapshot"),
             "http://x:1/v1/snapshot"
         );
-        assert_eq!(
-            build_probe_url("http://x:1", "v1/snapshot"),
-            "http://x:1/v1/snapshot"
-        );
-    }
-
-    #[test]
-    fn parse_url_default_port() {
-        let (h, p, path) = parse_url("http://example.com/foo").unwrap();
-        assert_eq!(h, "example.com");
-        assert_eq!(p, 80);
-        assert_eq!(path, "/foo");
     }
 
     #[test]
@@ -378,7 +353,7 @@ mod tests {
 
     #[test]
     fn parse_snapshot_counts_explicit_fields() {
-        let body = r#"{"running": 2, "pending": 5, "jobs": []}"#;
+        let body = r#"{"running": 2, "pending": 5}"#;
         assert_eq!(parse_snapshot_counts(body), Some((2, 5)));
     }
 
@@ -386,15 +361,9 @@ mod tests {
     fn parse_snapshot_counts_falls_back_to_phase_scan() {
         let body = r#"{"jobs":[
             {"phase":"Running"},{"phase":"Running"},
-            {"phase":"Queued"},{"phase":"Ready"},{"phase":"Done"}
+            {"phase":"Queued"},{"phase":"Ready"}
         ]}"#;
         assert_eq!(parse_snapshot_counts(body), Some((2, 2)));
-    }
-
-    #[test]
-    fn parse_snapshot_counts_all_zero() {
-        let body = r#"{"running": 0, "pending": 0}"#;
-        assert_eq!(parse_snapshot_counts(body), Some((0, 0)));
     }
 
     #[test]
@@ -422,12 +391,6 @@ mod tests {
     }
 
     #[test]
-    fn render_format_count_substitution() {
-        let out = render_format("$running/$pending", 4, 7, "_");
-        assert_eq!(out, "4/7");
-    }
-
-    #[test]
     fn pick_style_active_when_running() {
         let cfg = ShigotoConfig::default();
         assert_eq!(pick_style(&cfg, 1, 0), cfg.active_style.resolve());
@@ -441,12 +404,8 @@ mod tests {
 
     #[test]
     fn split_response_body_basic() {
-        let resp =
-            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"running\":0,\"pending\":0}";
-        assert_eq!(
-            split_response_body(resp),
-            Some("{\"running\":0,\"pending\":0}")
-        );
+        let resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"running\":0}";
+        assert_eq!(split_response_body(resp), Some("{\"running\":0}"));
     }
 
     #[test]

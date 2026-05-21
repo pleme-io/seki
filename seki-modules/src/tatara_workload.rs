@@ -1,17 +1,17 @@
 //! `tatara_workload` segment — surfaces running tatara allocations.
 //!
 //! Pleme-io-native (Tier 3). Spawns `tatara node list --format=json`,
-//! counts running allocations across every node in the JSON, and
-//! emits a Nord-frost-cyan segment.
+//! parses the running-allocation count, and emits a Nord-frost-cyan
+//! segment.
 //!
 //! ## Theme
 //!
-//! Nord-frost cyan `#88C0D0` — neutral fleet-state.
+//! Nord-frost cyan `#88C0D0`.
 //!
 //! ## Probe budget
 //!
-//! Subprocess with a hard timeout (`command_timeout_ms`). 30s
-//! in-process cache. Gracefully absent on failure.
+//! Subprocess with a hard timeout (`command_timeout_ms`). 30s cache.
+//! Gracefully absent on failure.
 
 use seki_core::{
     Module, RenderContext, Segment, SekiResult,
@@ -172,9 +172,9 @@ fn run_tatara_node_list(command: &str) -> Option<u32> {
     Some(parse_tatara_json(&text))
 }
 
-/// Count running allocations from `tatara node list --format=json`.
-/// Tolerantly checks `"allocations_running"` / `"running"` integer
-/// fields, then falls back to counting `"status":"Running"`.
+/// Count running allocations from JSON output. Tolerantly checks
+/// `"allocations_running"` / `"running"` integer fields, then falls
+/// back to counting `"status":"Running"`.
 pub fn parse_tatara_json(body: &str) -> u32 {
     if let Some(n) = extract_u32_field(body, "allocations_running") {
         return n;
@@ -182,8 +182,8 @@ pub fn parse_tatara_json(body: &str) -> u32 {
     if let Some(n) = extract_u32_field(body, "running") {
         return n;
     }
-    count_substring(body, "\"status\":\"Running\"") as u32
-        + count_substring(body, "\"status\": \"Running\"") as u32
+    body.matches("\"status\":\"Running\"").count() as u32
+        + body.matches("\"status\": \"Running\"").count() as u32
 }
 
 fn extract_u32_field(body: &str, name: &str) -> Option<u32> {
@@ -202,17 +202,13 @@ fn extract_u32_field(body: &str, name: &str) -> Option<u32> {
     after[..end].parse().ok()
 }
 
-fn count_substring(body: &str, needle: &str) -> usize {
-    body.matches(needle).count()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn parse_tatara_json_explicit_running_count() {
-        let body = r#"{"allocations_running": 7, "nodes": []}"#;
+        let body = r#"{"allocations_running": 7}"#;
         assert_eq!(parse_tatara_json(body), 7);
     }
 
