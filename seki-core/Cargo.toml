@@ -16,6 +16,11 @@ serde_json.workspace = true
 thiserror.workspace = true
 yansi.workspace = true
 unicode-width.workspace = true
+# ishou-tokens — fleet design-system tokens. Used by
+# `config::ishou_theme` to surface the prescribed FleetTheme variant
+# in the prompt at compile time (no runtime probe). Pure-data dep;
+# no GPU/wgpu feature pulled in.
+ishou-tokens.workspace = true
 
 [lints]
 workspace = true

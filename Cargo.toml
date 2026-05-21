@@ -29,6 +29,11 @@ chrono = { version = "0.4", default-features = false, features = ["std", "clock"
 yansi = "1"
 unicode-width = "0.2"
 shikumi = { git = "https://github.com/pleme-io/shikumi", features = ["cli"] }
+# ishou-tokens — fleet design-system token source. Pulled at compile
+# time by `seki_core::config::ishou_theme` so the active prescribed
+# FleetTheme variant surfaces in the prompt without any runtime
+# probe. Git source (not yet on crates.io).
+ishou-tokens = { git = "https://github.com/pleme-io/ishou" }
 
 [workspace.lints]
 
