@@ -309,6 +309,12 @@ pub fn blzsh_parity_config() -> SekiConfig {
         memory_usage: DisabledModuleConfig::default(),
         battery: DisabledModuleConfig::default(),
         status: DisabledModuleConfig::default(),
+
+        // ── Pleme-io-native (M3 Tier 1) ───────────────────────
+        // shikumi_tier surfaces active <APP>_TIER env vars. Default
+        // ON so operators see tier overrides instantly — Nord-aurora
+        // yellow signals "override in effect".
+        shikumi_tier: seki_core::config::shikumi_tier::ShikumiTierConfig::default(),
     }
 }
 

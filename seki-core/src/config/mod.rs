@@ -28,6 +28,7 @@ pub mod hostname;
 pub mod lang;
 pub mod nix_shell;
 pub mod rust;
+pub mod shikumi_tier;
 
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
@@ -112,6 +113,9 @@ pub struct SekiConfig {
     pub memory_usage: disabled::DisabledModuleConfig,
     pub battery: disabled::DisabledModuleConfig,
     pub status: disabled::DisabledModuleConfig,
+
+    // --- Pleme-io-native modules (Tier 1 — ship now) ---
+    pub shikumi_tier: shikumi_tier::ShikumiTierConfig,
 }
 
 impl Default for SekiConfig {
@@ -191,6 +195,8 @@ impl SekiConfig {
             memory_usage: disabled::DisabledModuleConfig::default(),
             battery: disabled::DisabledModuleConfig::default(),
             status: disabled::DisabledModuleConfig::default(),
+
+            shikumi_tier: shikumi_tier::ShikumiTierConfig::default(),
         }
     }
 
@@ -256,6 +262,8 @@ impl SekiConfig {
             memory_usage: disabled::DisabledModuleConfig::bare(),
             battery: disabled::DisabledModuleConfig::bare(),
             status: disabled::DisabledModuleConfig::bare(),
+
+            shikumi_tier: shikumi_tier::ShikumiTierConfig::bare(),
         }
     }
 }

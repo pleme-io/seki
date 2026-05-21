@@ -20,6 +20,7 @@ pub mod git_status;
 pub mod hostname;
 pub mod nix_shell;
 pub mod rust;
+pub mod shikumi_tier;
 
 /// Build a registry containing every enabled module configured in
 /// `cfg`. Modules with `enabled = false` are omitted.
@@ -51,6 +52,10 @@ pub fn default_registry(cfg: &SekiConfig) -> ModuleRegistry {
     }
     if cfg.custom.entries.values().any(|e| e.enabled) {
         reg.register(custom::CustomModule::new(cfg.custom.clone()));
+    }
+    // ── Pleme-io-native segments ───────────────────────────────
+    if cfg.shikumi_tier.enabled {
+        reg.register(shikumi_tier::ShikumiTierModule::new(cfg.shikumi_tier.clone()));
     }
     reg
 }
