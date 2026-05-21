@@ -41,7 +41,11 @@ pub struct TearConfig {
 impl Default for TearConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
+            // Default-OFF per docs/PLEME-IO-SEGMENTS.md M3 Tier 2:
+            // every Tier 2 segment except shikumi_config opts out by
+            // default. Operators flip `enabled = true` once their
+            // fleet posture makes the segment meaningful.
+            enabled: false,
             format: "[~ $session] [pane $pane]($style)".to_owned(),
             pane_id_len: 6,
             style: StyleSpec::new("bold #88C0D0"),
