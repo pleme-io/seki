@@ -3,7 +3,7 @@ resolver = "2"
 members = ["seki", "seki-core", "seki-modules", "seki-shikumi"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.89.0"
 license = "MIT"
@@ -14,9 +14,9 @@ description = "seki (席) — typed prompt renderer, starship fork wrapped in th
 
 [workspace.dependencies]
 # Internal members
-seki-core = { path = "seki-core", version = "0.1.0" }
-seki-modules = { path = "seki-modules", version = "0.1.0" }
-seki-shikumi = { path = "seki-shikumi", version = "0.1.0" }
+seki-core = { path = "seki-core", version = "0.1.1" }
+seki-modules = { path = "seki-modules", version = "0.1.1" }
+seki-shikumi = { path = "seki-shikumi", version = "0.1.1" }
 
 # External deps shared across the workspace
 serde = { version = "1", features = ["derive"] }
