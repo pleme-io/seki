@@ -709,7 +709,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/ishou";
           rev = "befd51e17b2b55ce480c8f62e0d7a41fa4d2a3aa";
-          sha256 = "sha256-koP3kp5Ux+ILqKJbpB0cApKQwpAjDyAnQDSvHuv2Lu8=";
+          sha256 = "1vrfyvmixbrl80kj03r3j31914h23hfs8nx2m05y5islks9gg0wj";
         };
         libName = "ishou_tokens";
         dependencies = [
@@ -1223,7 +1223,7 @@ rec {
       };
       "seki" = rec {
         crateName = "seki";
-        version = "0.1.0";
+        version = "0.1.1";
         edition = "2024";
         crateBin = [
           {
@@ -1277,7 +1277,7 @@ rec {
       };
       "seki-core" = rec {
         crateName = "seki-core";
-        version = "0.1.0";
+        version = "0.1.1";
         edition = "2024";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./seki-core; };
         libName = "seki_core";
@@ -1319,7 +1319,7 @@ rec {
       };
       "seki-modules" = rec {
         crateName = "seki-modules";
-        version = "0.1.0";
+        version = "0.1.1";
         edition = "2024";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./seki-modules; };
         libName = "seki_modules";
@@ -1353,7 +1353,7 @@ rec {
       };
       "seki-shikumi" = rec {
         crateName = "seki-shikumi";
-        version = "0.1.0";
+        version = "0.1.1";
         edition = "2024";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./seki-shikumi; };
         libName = "seki_shikumi";
