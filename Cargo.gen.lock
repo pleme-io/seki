@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "cargo_lock_sha256": "4735a07f4876b8ad4ecda66521e4ad0f4ff868574d89d7b15961e14c3a5f761e",
+  "cargo_lock_sha256": "f77a5939072b1056dd850f4a45a4d4503e54103a111a801b3f221e2231f9040b",
   "target_resolves": {
     "base": {
       "anstream-1.0.0": {
@@ -1134,7 +1134,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "seki-0.1.2": {
+      "seki-0.1.3": {
         "runtime_dependencies": [
           {
             "name": "anyhow",
@@ -1160,7 +1160,7 @@
           },
           {
             "name": "seki_core",
-            "package_key": "seki-core-0.1.2",
+            "package_key": "seki-core-0.1.3",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1170,7 +1170,7 @@
           },
           {
             "name": "seki_modules",
-            "package_key": "seki-modules-0.1.2",
+            "package_key": "seki-modules-0.1.3",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1180,7 +1180,7 @@
           },
           {
             "name": "seki_shikumi",
-            "package_key": "seki-shikumi-0.1.2",
+            "package_key": "seki-shikumi-0.1.3",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1226,7 +1226,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "seki-core-0.1.2": {
+      "seki-core-0.1.3": {
         "runtime_dependencies": [
           {
             "name": "ishou_tokens",
@@ -1304,11 +1304,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "seki-modules-0.1.2": {
+      "seki-modules-0.1.3": {
         "runtime_dependencies": [
           {
             "name": "seki_core",
-            "package_key": "seki-core-0.1.2",
+            "package_key": "seki-core-0.1.3",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1362,11 +1362,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "seki-shikumi-0.1.2": {
+      "seki-shikumi-0.1.3": {
         "runtime_dependencies": [
           {
             "name": "seki_core",
-            "package_key": "seki-core-0.1.2",
+            "package_key": "seki-core-0.1.3",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3759,8 +3759,8 @@
     "constant_time_eq-0.4.2": {
       "edition": "2024"
     },
-    "core-foundation-sys-0.8.7": {
-      "edition": "2018"
+    "cpufeatures-0.3.0": {
+      "edition": "2024"
     },
     "equivalent-1.0.2": {
       "edition": "2015"
@@ -3797,6 +3797,12 @@
     "inlinable_string-0.1.15": {
       "edition": "2018"
     },
+    "inotify-0.11.1": {
+      "edition": "2018"
+    },
+    "inotify-sys-0.1.5": {
+      "edition": "2015"
+    },
     "inventory-0.3.24": {
       "edition": "2021"
     },
@@ -3810,12 +3816,6 @@
       "edition": "2024"
     },
     "itoa-1.0.18": {
-      "edition": "2021"
-    },
-    "kqueue-1.1.1": {
-      "edition": "2021"
-    },
-    "kqueue-sys-1.1.2": {
       "edition": "2021"
     },
     "libc-0.2.186": {
@@ -3877,7 +3877,7 @@
     "same-file-1.0.6": {
       "edition": "2018"
     },
-    "seki-0.1.2": {
+    "seki-0.1.3": {
       "edition": "2024",
       "binaries": [
         {
@@ -3886,21 +3886,21 @@
         }
       ]
     },
-    "seki-core-0.1.2": {
+    "seki-core-0.1.3": {
       "edition": "2024",
       "lib_target": {
         "name": "seki_core",
         "path": "src/lib.rs"
       }
     },
-    "seki-modules-0.1.2": {
+    "seki-modules-0.1.3": {
       "edition": "2024",
       "lib_target": {
         "name": "seki_modules",
         "path": "src/lib.rs"
       }
     },
-    "seki-shikumi-0.1.2": {
+    "seki-shikumi-0.1.3": {
       "edition": "2024",
       "lib_target": {
         "name": "seki_shikumi",
@@ -4013,14 +4013,14 @@
       "edition": "2021",
       "build_script": "build.rs"
     },
-    "cpufeatures-0.3.0": {
-      "edition": "2024"
-    },
-    "inotify-0.11.1": {
+    "core-foundation-sys-0.8.7": {
       "edition": "2018"
     },
-    "inotify-sys-0.1.5": {
-      "edition": "2015"
+    "kqueue-1.1.1": {
+      "edition": "2021"
+    },
+    "kqueue-sys-1.1.2": {
+      "edition": "2021"
     }
   },
   "git_nar_sha256": {
