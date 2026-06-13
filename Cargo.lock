@@ -637,7 +637,7 @@ dependencies = [
 
 [[package]]
 name = "seki"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anyhow",
  "clap",
@@ -651,7 +651,7 @@ dependencies = [
 
 [[package]]
 name = "seki-core"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "ishou-tokens",
  "serde",
@@ -664,7 +664,7 @@ dependencies = [
 
 [[package]]
 name = "seki-modules"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "seki-core",
  "serde",
@@ -675,7 +675,7 @@ dependencies = [
 
 [[package]]
 name = "seki-shikumi"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "ishou-tokens",
  "seki-core",
