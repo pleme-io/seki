@@ -78,6 +78,7 @@ pub fn prescribed_theme_name() -> &'static str {
     match ishou_tokens::FleetDefaults::prescribed().theme {
         FleetTheme::Bare => "Bare",
         FleetTheme::PlemeDark => "PlemeDark",
+        FleetTheme::BorealisNight => "BorealisNight",
     }
 }
 
@@ -114,10 +115,11 @@ mod tests {
     }
 
     #[test]
-    fn prescribed_theme_name_is_pleme_dark() {
-        // FleetDefaults::prescribed().theme is canonically PlemeDark
-        // — this is the load-bearing assertion that proves the
-        // ishou-tokens dep is actually wired through compile-time.
-        assert_eq!(prescribed_theme_name(), "PlemeDark");
+    fn prescribed_theme_name_is_borealis_night() {
+        // FleetDefaults::prescribed().theme is canonically
+        // BorealisNight (the prescribed fleet theme) — this is the
+        // load-bearing assertion that proves the ishou-tokens dep is
+        // actually wired through compile-time.
+        assert_eq!(prescribed_theme_name(), "BorealisNight");
     }
 }
