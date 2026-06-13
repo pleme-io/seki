@@ -16,6 +16,8 @@ use seki_core::SekiConfig;
 use shikumi::TieredConfig;
 
 pub mod blzsh_parity;
+pub mod borealis;
+pub mod borealis_config;
 
 /// Newtype wrapper so we can `impl TieredConfig` from this crate
 /// without touching seki-core. The renderer accepts a borrowed
@@ -51,10 +53,10 @@ impl TieredConfig for TieredSekiConfig {
     }
 
     fn prescribed_default() -> Self {
-        // M3: prescribed default IS blzsh-parity. Operators
-        // switching from blzsh → frostmourne (default-tier seki)
-        // see the exact same Nord-snowflake prompt.
-        Self(blzsh_parity::blzsh_parity_config())
+        // The prescribed default is the Borealis-themed prompt —
+        // structurally identical to blzsh-parity (same ❄, same
+        // segments), every accent resolved from a BORN Borealis token.
+        Self(borealis_config::borealis_config())
     }
 }
 
@@ -78,7 +80,10 @@ mod tests {
     }
 
     #[test]
-    fn prescribed_default_is_blzsh_parity() {
+    fn prescribed_default_keeps_blzsh_structure() {
+        // The prescribed default is now Borealis-themed but preserves
+        // the blzsh-parity STRUCTURE (segments + order); only the
+        // palette changed.
         let c = TieredSekiConfig::prescribed_default().0;
         // blzsh keeps these enabled
         assert!(c.character.enabled);
