@@ -16,8 +16,8 @@ use seki_core::SekiConfig;
 use shikumi::TieredConfig;
 
 pub mod blzsh_parity;
-pub mod borealis;
-pub mod borealis_config;
+pub mod vellum;
+pub mod vellum_config;
 
 /// Newtype wrapper so we can `impl TieredConfig` from this crate
 /// without touching seki-core. The renderer accepts a borrowed
@@ -53,10 +53,10 @@ impl TieredConfig for TieredSekiConfig {
     }
 
     fn prescribed_default() -> Self {
-        // The prescribed default is the Borealis-themed prompt —
+        // The prescribed default is the Vellum-themed prompt —
         // structurally identical to blzsh-parity (same ❄, same
-        // segments), every accent resolved from a BORN Borealis token.
-        Self(borealis_config::borealis_config())
+        // segments), every accent resolved from a BORN Vellum token.
+        Self(vellum_config::vellum_config())
     }
 }
 
@@ -81,7 +81,7 @@ mod tests {
 
     #[test]
     fn prescribed_default_keeps_blzsh_structure() {
-        // The prescribed default is now Borealis-themed but preserves
+        // The prescribed default is now Vellum-themed but preserves
         // the blzsh-parity STRUCTURE (segments + order); only the
         // palette changed.
         let c = TieredSekiConfig::prescribed_default().0;

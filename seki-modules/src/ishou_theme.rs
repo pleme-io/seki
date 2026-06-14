@@ -124,10 +124,10 @@ mod tests {
         let ctx = RenderContext::from_env().with_colors(false);
         let seg = module.render(&ctx).unwrap().expect("segment");
         assert_eq!(seg.module, "ishou_theme");
-        // The prescribed FleetDefaults variant is BorealisNight —
+        // The prescribed FleetDefaults variant is Vellum —
         // proves the ishou-tokens dep wires through end-to-end at the
         // module-render layer.
-        assert_eq!(seg.fragments[0].text, "ishou: BorealisNight");
+        assert_eq!(seg.fragments[0].text, "ishou: Vellum");
     }
 
     #[test]
