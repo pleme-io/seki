@@ -31,6 +31,21 @@ use seki_core::config::{
 use seki_core::style::StyleSpec;
 use std::collections::BTreeMap;
 
+use ishou_tokens::{FleetSignals, Signal, SignalMode};
+
+/// Pull the single-width (`SignalMode::Glyph`) rendering of one git
+/// signal from the prescribed [`FleetSignals`] atlas. seki is the first
+/// `FleetSignals` consumer; sourcing the prompt's git glyphs here means
+/// touching the fleet atlas propagates to seki on the next compile. The
+/// `Glyph` mode is mandatory for a prompt segment — the emoji column is
+/// often two cells and would misalign the fixed-width prompt.
+fn git_glyph(pick: impl Fn(&FleetSignals) -> &Signal) -> &'static str {
+    // `FleetSignals::prescribed` is a `const` factory, so this is a
+    // compile-time-known constant per signal — no runtime probe.
+    static PRESCRIBED: FleetSignals = FleetSignals::prescribed();
+    pick(&PRESCRIBED).render(SignalMode::Glyph)
+}
+
 /// The blzsh-parity config — the seki equivalent of
 /// `/tmp/blzsh-starship.toml`. Hand-verified field-for-field
 /// against the reference TOML (see `examples/blzsh-parity.yaml`
@@ -111,14 +126,39 @@ pub fn blzsh_parity_config() -> SekiConfig {
         // conflicted = "=" deleted = "✘" renamed = "»"
         // modified = "!"   staged = "+" untracked = "?"
         // up_to_date = ""
+        //
+        // ── FleetSignals adoption ──────────────────────────────────
+        // seki is the first `ishou_tokens::FleetSignals` consumer. The
+        // ahead / behind / diverged glyphs are sourced from the fleet
+        // signal atlas (single-width `SignalMode::Glyph` column) so
+        // they move fleet-uniform on the next compile. The atlas glyphs
+        // (`⇡` `⇣` `⇕`) were chosen to MATCH seki's existing blzsh
+        // vocabulary exactly — adoption is glyph-identical, not a
+        // visible change. The `${count}` substitution tokens are
+        // composed onto the fleet glyph.
+        //
+        // The remaining status fields (modified=`!`, staged=`+`,
+        // conflicted=`=`, deleted=`✘`, stashed=`$$`) are deliberately
+        // NOT sourced from FleetSignals: their atlas glyphs (`✚` `●`
+        // `✘` `⚑`) DIVERGE from seki's blzsh-parity symbols, and
+        // re-pointing them would silently change the operator-visible
+        // blzsh prompt. They stay on the blzsh vocabulary; reconciling
+        // them is a FleetSignals-side decision, not a seki change.
         git_status: GitStatusConfig {
             enabled: true,
             format: "[$all_status$ahead_behind]($style) ".to_owned(),
             style: StyleSpec::new("bold #EBCB8B"),
             stashed: "$$".to_owned(),
-            ahead: "⇡${count}".to_owned(),
-            behind: "⇣${count}".to_owned(),
-            diverged: "⇕${ahead_count}⇣${behind_count}".to_owned(),
+            // ⇡ from FleetSignals.git_ahead (glyph) + ${count}.
+            ahead: format!("{}${{count}}", git_glyph(|s| &s.git_ahead)),
+            // ⇣ from FleetSignals.git_behind (glyph) + ${count}.
+            behind: format!("{}${{count}}", git_glyph(|s| &s.git_behind)),
+            // ⇕ from FleetSignals.git_diverged (glyph) + ahead/behind counts.
+            diverged: format!(
+                "{}${{ahead_count}}{}${{behind_count}}",
+                git_glyph(|s| &s.git_diverged),
+                git_glyph(|s| &s.git_behind),
+            ),
             conflicted: "=".to_owned(),
             deleted: "✘".to_owned(),
             renamed: "»".to_owned(),
@@ -417,6 +457,43 @@ mod tests {
         assert_eq!(c.scan_timeout_ms, 100);
         assert_eq!(c.command_timeout_ms, 500);
         assert!(!c.add_newline);
+    }
+
+    #[test]
+    fn git_glyphs_are_sourced_from_fleet_signals() {
+        // seki is the first `ishou_tokens::FleetSignals` consumer. This
+        // is the forcing function: the prompt's ahead/behind/diverged
+        // glyphs MUST equal the prescribed atlas glyphs (with seki's
+        // `${count}` substitution tokens composed on). If the atlas
+        // glyph ever drifts, this test fails — keeping seki's prompt
+        // vocabulary fleet-uniform by construction.
+        let c = blzsh_parity_config();
+        let s = ishou_tokens::FleetSignals::prescribed();
+        let g = |sig: &ishou_tokens::Signal| sig.render(ishou_tokens::SignalMode::Glyph);
+
+        // The chosen atlas glyphs match seki's historical blzsh symbols
+        // exactly — adoption changed the SOURCE, not the rendered glyph.
+        assert_eq!(g(&s.git_ahead), "⇡");
+        assert_eq!(g(&s.git_behind), "⇣");
+        assert_eq!(g(&s.git_diverged), "⇕");
+
+        assert_eq!(c.git_status.ahead, format!("{}${{count}}", g(&s.git_ahead)));
+        assert_eq!(c.git_status.behind, format!("{}${{count}}", g(&s.git_behind)));
+        assert_eq!(
+            c.git_status.diverged,
+            format!(
+                "{}${{ahead_count}}{}${{behind_count}}",
+                g(&s.git_diverged),
+                g(&s.git_behind),
+            ),
+        );
+
+        // Fields whose atlas glyphs DIVERGE from blzsh stay on the
+        // blzsh vocabulary (NOT silently re-pointed). Pin them so the
+        // intentional divergence is documented + regression-guarded.
+        assert_eq!(c.git_status.modified, "!"); // atlas git_dirty = ✚
+        assert_eq!(c.git_status.staged, "+"); //   atlas git_staged = ●
+        assert_eq!(c.git_status.stashed, "$$"); //  atlas git_stashed = ⚑
     }
 
     #[test]

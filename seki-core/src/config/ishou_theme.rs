@@ -79,6 +79,7 @@ pub fn prescribed_theme_name() -> &'static str {
         FleetTheme::Bare => "Bare",
         FleetTheme::PlemeDark => "PlemeDark",
         FleetTheme::Vellum => "Vellum",
+        FleetTheme::PolarVeil => "PolarVeil",
     }
 }
 
