@@ -43,11 +43,15 @@ impl Module for TearModule {
     fn render(&self, _ctx: &RenderContext) -> SekiResult<Option<Segment>> {
         // Both env vars must be set — outside a tear pane the
         // segment renders nothing.
-        let session = match env_lookup("TEAR_SESSION_NAME") {
+        // Env-var names come from the typed cross-tool contract — the
+        // SAME source tear (the producer) stamps them from. A rename is a
+        // compile-time change on both sides of the fleet.
+        use ishou_tokens::FleetStateVar;
+        let session = match env_lookup(FleetStateVar::TearSessionName.name()) {
             Some(s) => s,
             None => return Ok(None),
         };
-        let pane = match env_lookup("TEAR_PANE_ID") {
+        let pane = match env_lookup(FleetStateVar::TearPaneId.name()) {
             Some(p) => p,
             None => return Ok(None),
         };
@@ -124,6 +128,18 @@ pub fn render_format(fmt: &str, session: &str, pane: &str) -> String {
 mod tests {
     use super::*;
 
+    /// Forcing function: the env-var names this segment reads come from
+    /// the typed cross-tool contract (`ishou_tokens::FleetStateVar`) —
+    /// the SAME source tear (the producer) stamps them from. Pinning the
+    /// variant→name mapping makes a rename on either side a compile+test
+    /// failure, so consumer and producer can never silently drift.
+    #[test]
+    fn tear_env_var_names_come_from_fleet_state_contract() {
+        use ishou_tokens::FleetStateVar;
+        assert_eq!(FleetStateVar::TearSessionName.name(), "TEAR_SESSION_NAME");
+        assert_eq!(FleetStateVar::TearPaneId.name(), "TEAR_PANE_ID");
+    }
+
     #[test]
     fn truncate_caps_at_n() {
         assert_eq!(truncate("abcdefgh", 6), "abcdef");
@@ -175,9 +191,10 @@ mod tests {
         // (TEAR_*) which are extremely unlikely to be set in CI.
         // SAFETY: env_remove_var/set_var are unsafe in edition 2024
         // but this test is single-threaded WRT these vars.
+        use ishou_tokens::FleetStateVar;
         unsafe {
-            std::env::remove_var("TEAR_SESSION_NAME");
-            std::env::remove_var("TEAR_PANE_ID");
+            std::env::remove_var(FleetStateVar::TearSessionName.name());
+            std::env::remove_var(FleetStateVar::TearPaneId.name());
         }
         let module = TearModule::new(TearConfig {
             enabled: true,

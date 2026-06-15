@@ -59,7 +59,11 @@ pub fn vellum_config() -> SekiConfig {
 
     // env_var TEAR_SESSION_NAME = ice_cyan bold (WORKSPACE stays the
     // typed `dimmed italic` SGR — no hex).
-    if let Some(tear) = c.env_var.entries.get_mut("TEAR_SESSION_NAME") {
+    if let Some(tear) = c
+        .env_var
+        .entries
+        .get_mut(ishou_tokens::FleetStateVar::TearSessionName.name())
+    {
         tear.style = StyleSpec::new(PromptPalette::bold(&p.ice_cyan));
     }
 

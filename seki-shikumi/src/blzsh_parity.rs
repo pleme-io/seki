@@ -273,10 +273,12 @@ pub fn blzsh_parity_config() -> SekiConfig {
                     },
                 );
                 m.insert(
-                    "TEAR_SESSION_NAME".to_owned(),
+                    ishou_tokens::FleetStateVar::TearSessionName.name().to_owned(),
                     EnvVarEntry {
                         enabled: true,
-                        variable: Some("TEAR_SESSION_NAME".to_owned()),
+                        variable: Some(
+                            ishou_tokens::FleetStateVar::TearSessionName.name().to_owned(),
+                        ),
                         default: String::new(),
                         style: StyleSpec::new("bold #88C0D0"),
                         format: "[~ $env_value]($style) ".to_owned(),
@@ -435,7 +437,7 @@ mod tests {
         assert!(c.cmd_duration.enabled);
         assert!(c.nix_shell.enabled);
         assert!(c.env_var.entries["WORKSPACE"].enabled);
-        assert!(c.env_var.entries["TEAR_SESSION_NAME"].enabled);
+        assert!(c.env_var.entries[ishou_tokens::FleetStateVar::TearSessionName.name()].enabled);
         assert!(c.custom.entries["tear_pane"].enabled);
     }
 
@@ -573,8 +575,9 @@ mod tests {
         assert_eq!(ws.variable.as_deref(), Some("WORKSPACE"));
         assert_eq!(ws.format, "[\\[$env_value\\]]($style) ");
         assert_eq!(ws.style.as_str(), "dimmed italic");
-        let tear = &c.env_var.entries["TEAR_SESSION_NAME"];
-        assert_eq!(tear.variable.as_deref(), Some("TEAR_SESSION_NAME"));
+        let tear_name = ishou_tokens::FleetStateVar::TearSessionName.name();
+        let tear = &c.env_var.entries[tear_name];
+        assert_eq!(tear.variable.as_deref(), Some(tear_name));
         assert_eq!(tear.format, "[~ $env_value]($style) ");
     }
 
