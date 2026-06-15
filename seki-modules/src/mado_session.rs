@@ -114,11 +114,14 @@ pub fn resolve_socket_path<F>(
 where
     F: Fn(&str) -> Option<String>,
 {
+    // Env-var name from the typed cross-tool contract — the SAME source
+    // mado (the producer) exports MADO_SOCKET from.
+    use ishou_tokens::FleetStateVar;
     if socket_path.is_empty() {
         return None;
     }
     if socket_path == "$env" {
-        if let Some(env_path) = lookup("MADO_SOCKET") {
+        if let Some(env_path) = lookup(FleetStateVar::MadoSocket.name()) {
             return Some(PathBuf::from(env_path));
         }
         let home = home?;
@@ -272,6 +275,16 @@ mod tests {
         move |name: &str| map.get(name).map(|s| (*s).to_owned())
     }
 
+    /// Forcing function: the MADO_SOCKET name this segment reads comes
+    /// from the typed cross-tool contract (`ishou_tokens::FleetStateVar`)
+    /// — the SAME source mado (the producer) exports it from. A rename on
+    /// either side is a compile+test failure here.
+    #[test]
+    fn mado_socket_env_var_name_comes_from_fleet_state_contract() {
+        use ishou_tokens::FleetStateVar;
+        assert_eq!(FleetStateVar::MadoSocket.name(), "MADO_SOCKET");
+    }
+
     #[test]
     fn resolve_socket_explicit_path() {
         let lookup = stub_lookup(HashMap::new());
@@ -281,7 +294,10 @@ mod tests {
 
     #[test]
     fn resolve_socket_env_marker_uses_lookup() {
-        let lookup = stub_lookup(HashMap::from([("MADO_SOCKET", "/run/mado.sock")]));
+        let lookup = stub_lookup(HashMap::from([(
+            ishou_tokens::FleetStateVar::MadoSocket.name(),
+            "/run/mado.sock",
+        )]));
         let r = resolve_socket_path("$env", lookup, None);
         assert_eq!(r, Some(PathBuf::from("/run/mado.sock")));
     }

@@ -15,6 +15,11 @@ serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
 thiserror.workspace = true
+# Typed cross-tool environment contract — FleetStateVar owns the
+# canonical TEAR_* / MADO_* env-var names this prompt reads (tear
+# produces them from the same typed variants). The name lives in one
+# place: a rename is a compile-time change on both sides of the fleet.
+ishou-tokens.workspace = true
 
 [lints]
 workspace = true
