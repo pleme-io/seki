@@ -31,7 +31,7 @@ use seki_core::config::{
 use seki_core::style::StyleSpec;
 use std::collections::BTreeMap;
 
-use ishou_tokens::{FleetSignals, Signal, SignalMode};
+use ishou_tokens::{FleetSignals, SekiSignals, Signal, SignalMode};
 
 /// Pull the single-width (`SignalMode::Glyph`) rendering of one git
 /// signal from the prescribed [`FleetSignals`] atlas. seki is the first
@@ -46,6 +46,17 @@ fn git_glyph(pick: impl Fn(&FleetSignals) -> &Signal) -> &'static str {
     pick(&PRESCRIBED).render(SignalMode::Glyph)
 }
 
+/// Pull the single-width (`SignalMode::Glyph`) rendering of one
+/// language/runtime signal from the prescribed [`SekiSignals`] atlas —
+/// the per-app curated set for seki. Glyph mode is mandatory for the
+/// blzsh-parity prompt: the emoji column is often two cells wide and
+/// would misalign the fixed-width prompt (the blzsh `nix_shell` symbol
+/// is the single-width `❄`, which is exactly `SekiSignals.lang_nix.glyph`).
+fn seki_glyph(pick: impl Fn(&SekiSignals) -> &Signal) -> &'static str {
+    static PRESCRIBED: SekiSignals = SekiSignals::prescribed();
+    pick(&PRESCRIBED).render(SignalMode::Glyph)
+}
+
 /// The blzsh-parity config — the seki equivalent of
 /// `/tmp/blzsh-starship.toml`. Hand-verified field-for-field
 /// against the reference TOML (see `examples/blzsh-parity.yaml`
@@ -57,8 +68,8 @@ pub fn blzsh_parity_config() -> SekiConfig {
         // Order matches the format string exactly.
         prompt_order: vec![
             "nix_shell".to_owned(),
-            "env_var".to_owned(),       // WORKSPACE + TEAR_SESSION_NAME
-            "custom".to_owned(),        // tear_pane
+            "env_var".to_owned(), // WORKSPACE + TEAR_SESSION_NAME
+            "custom".to_owned(),  // tear_pane
             "hostname".to_owned(),
             "directory".to_owned(),
             "git_branch".to_owned(),
@@ -221,10 +232,17 @@ pub fn blzsh_parity_config() -> SekiConfig {
         // format = '[$symbol]($style) '
         // symbol = "❄"
         // style  = "bold #88C0D0"
+        //
+        // ── SekiSignals adoption ───────────────────────────────────
+        // The single-width `❄` is sourced from the prescribed
+        // `SekiSignals.lang_nix` glyph — glyph-identical to the
+        // historical blzsh symbol, so this changed the SOURCE not the
+        // rendered prompt. Touching the fleet atlas now propagates here.
         nix_shell: NixShellConfig {
             enabled: true,
             format: "[$symbol]($style) ".to_owned(),
-            symbol: "❄".to_owned(),
+            // ❄ from SekiSignals.lang_nix (single-width Glyph).
+            symbol: seki_glyph(|s| &s.lang_nix).to_owned(),
             style: StyleSpec::new("bold #88C0D0"),
             impure_format: "impure".to_owned(),
             pure_format: "pure".to_owned(),
@@ -478,7 +496,10 @@ mod tests {
         assert_eq!(g(&s.git_diverged), "⇕");
 
         assert_eq!(c.git_status.ahead, format!("{}${{count}}", g(&s.git_ahead)));
-        assert_eq!(c.git_status.behind, format!("{}${{count}}", g(&s.git_behind)));
+        assert_eq!(
+            c.git_status.behind,
+            format!("{}${{count}}", g(&s.git_behind))
+        );
         assert_eq!(
             c.git_status.diverged,
             format!(
@@ -494,6 +515,34 @@ mod tests {
         assert_eq!(c.git_status.modified, "!"); // atlas git_dirty = ✚
         assert_eq!(c.git_status.staged, "+"); //   atlas git_staged = ●
         assert_eq!(c.git_status.stashed, "$$"); //  atlas git_stashed = ⚑
+    }
+
+    #[test]
+    fn lang_glyphs_are_sourced_from_seki_signals() {
+        // Forcing function for the language/runtime icons. The only
+        // operator-visible language glyph in the blzsh-parity prompt is
+        // `nix_shell` (rust + golang + python + nodejs + docker_context
+        // + kubernetes are all disabled here). Its single-width `❄` is
+        // sourced from `SekiSignals.lang_nix.glyph` — glyph-identical to
+        // the historical blzsh symbol, so adoption moved the SOURCE not
+        // the rendered prompt. Drift fails the build.
+        let c = blzsh_parity_config();
+        let s = ishou_tokens::SekiSignals::prescribed();
+        let g = |sig: &ishou_tokens::Signal| sig.render(ishou_tokens::SignalMode::Glyph);
+
+        // The chosen atlas glyph matches seki's historical blzsh symbol.
+        assert_eq!(g(&s.lang_nix), "❄");
+        assert_eq!(c.nix_shell.symbol, g(&s.lang_nix));
+
+        // The remaining language modules are disabled in the blzsh
+        // prompt, so they carry no operator-visible symbol to source.
+        // Pin that fact so an accidental enable is caught.
+        assert!(!c.rust.enabled);
+        assert!(!c.golang.enabled);
+        assert!(!c.python.enabled);
+        assert!(!c.nodejs.enabled);
+        assert!(!c.docker_context.enabled);
+        assert!(!c.kubernetes.enabled);
     }
 
     #[test]
