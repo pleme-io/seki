@@ -1,7 +1,19 @@
 //! Typed config for the `nix_shell` segment.
 
 use crate::style::StyleSpec;
+use ishou_tokens::{SekiSignals, SignalMode};
 use serde::{Deserialize, Serialize};
+
+/// The prescribed nix glyph for the `nix_shell` segment, sourced from
+/// the fleet [`SekiSignals`] atlas. Emoji mode (`❄️`) matches seki's
+/// historical `nix_shell` default symbol exactly — the adoption moves
+/// the SOURCE to the fleet atlas, not the rendered symbol. (The
+/// blzsh-parity prompt uses the single-width `Glyph` form `❄` directly,
+/// sourced separately in `seki-shikumi::blzsh_parity`.)
+fn nix_symbol() -> String {
+    const PRESCRIBED: SekiSignals = SekiSignals::prescribed();
+    format!("{} ", PRESCRIBED.lang_nix.render(SignalMode::Emoji))
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NixShellConfig {
@@ -25,7 +37,8 @@ impl Default for NixShellConfig {
         Self {
             enabled: true,
             format: "[$symbol]($style) ".to_owned(),
-            symbol: "❄️ ".to_owned(),
+            // ❄️ from SekiSignals.lang_nix (emoji) + trailing space.
+            symbol: nix_symbol(),
             style: StyleSpec::new("bold blue"),
             impure_format: "impure".to_owned(),
             pure_format: "pure".to_owned(),
@@ -49,5 +62,23 @@ impl NixShellConfig {
             prefix: String::new(),
             suffix: String::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Forcing function: the prescribed `nix_shell` symbol MUST equal
+    /// the fleet [`SekiSignals`]`.lang_nix` emoji glyph (with seki's
+    /// trailing space). Drift fails the build.
+    #[test]
+    fn nix_symbol_is_sourced_from_seki_signals() {
+        let s = SekiSignals::prescribed();
+        let expected = format!("{} ", s.lang_nix.render(SignalMode::Emoji));
+        assert_eq!(NixShellConfig::default().symbol, expected);
+        // Adoption is glyph-identical: the atlas emoji matches seki's
+        // historical ❄️ symbol.
+        assert_eq!(s.lang_nix.render(SignalMode::Emoji), "❄️");
     }
 }
