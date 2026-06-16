@@ -16,6 +16,7 @@ use seki_core::SekiConfig;
 use shikumi::TieredConfig;
 
 pub mod blzsh_parity;
+pub mod companion_config;
 pub mod vellum;
 pub mod vellum_config;
 
@@ -53,10 +54,13 @@ impl TieredConfig for TieredSekiConfig {
     }
 
     fn prescribed_default() -> Self {
-        // The prescribed default is the Vellum-themed prompt —
-        // structurally identical to blzsh-parity (same ❄, same
-        // segments), every accent resolved from a BORN Vellum token.
-        Self(vellum_config::vellum_config())
+        // The prescribed default is the emoji-forward "companion" prompt:
+        // the cold Nord-frost base + a touch of Brazilian warmth, each
+        // segment a friendly emoji, short-and-sweet (every segment
+        // conditional, hostname ssh-only). The ❄ snowflake stays the
+        // fleet signature. (vellum_config / blzsh_parity remain available
+        // as alternate themes / the parity reference.)
+        Self(companion_config::companion_config())
     }
 }
 
