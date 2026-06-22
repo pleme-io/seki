@@ -17,6 +17,7 @@ use shikumi::TieredConfig;
 
 pub mod blzsh_parity;
 pub mod companion_config;
+pub mod discovered;
 pub mod vellum;
 pub mod vellum_config;
 
@@ -45,12 +46,10 @@ impl TieredConfig for TieredSekiConfig {
     }
 
     fn discovered() -> Self {
-        // M1: no auto-detect helpers yet. The discovered tier is
-        // bare + (future) display-width-aware truncation_length,
-        // terminal-theme-aware palette choice, IN_NIX_SHELL
-        // pre-detection. Today returns bare so the contract still
-        // distinguishes the four tiers structurally.
-        Self::bare()
+        // The companion default, adapted to the terminal + fleet context
+        // it finds itself in: mado / truecolor / nix-shell / SSH / pane
+        // width / dumb-or-CI. See `discovered::detect` (pure, testable).
+        Self(discovered::discovered_config(&discovered::detect_from_env()))
     }
 
     fn prescribed_default() -> Self {
@@ -97,21 +96,28 @@ mod tests {
         assert!(c.directory.enabled);
         assert!(c.cmd_duration.enabled);
         assert!(c.nix_shell.enabled);
-        // blzsh keeps these disabled
-        assert!(!c.rust.enabled);
+        // companion enables the conditional rust segment (Rust-dominant
+        // fleet — silent outside Cargo repos, present across the fleet).
+        assert!(c.rust.enabled, "companion enables rust for the fleet");
+        assert!(c.prompt_order.iter().any(|s| s == "rust"));
+        // still disabled
         assert!(!c.kubernetes.enabled);
         assert!(!c.username.enabled);
-        // blzsh order
+        // order anchors preserved: nix_shell first, ❄ character last
         assert_eq!(c.prompt_order.first().map(String::as_str), Some("nix_shell"));
         assert_eq!(c.prompt_order.last().map(String::as_str), Some("character"));
     }
 
     #[test]
-    fn discovered_returns_bare_in_m1() {
-        assert_eq!(
-            TieredSekiConfig::discovered(),
-            TieredSekiConfig::bare(),
-        );
+    fn discovered_always_yields_a_working_prompt() {
+        // discovered() reads the real env; regardless of what it finds
+        // (rich companion, width-adapted, or minimal fallback) it always
+        // produces a non-empty, renderable prompt — never the empty
+        // bare floor. The detection matrix itself is unit-tested in
+        // `discovered::tests`.
+        let c = TieredSekiConfig::discovered().0;
+        assert!(!c.prompt_order.is_empty());
+        assert!(c.character.enabled);
     }
 
     #[test]

@@ -39,7 +39,7 @@ impl Module for EnvVarModule {
             if value.is_empty() {
                 continue;
             }
-            let text = render_format(&entry.format, &value);
+            let text = seki_core::format::render_one(&entry.format, "env_value", &value);
             if text.is_empty() {
                 continue;
             }
@@ -51,51 +51,6 @@ impl Module for EnvVarModule {
             Ok(Some(segment))
         }
     }
-}
-
-/// Render `[\[$env_value\]]($style) `-style format strings,
-/// stripping starship markup and substituting `$env_value`.
-pub fn render_format(fmt: &str, value: &str) -> String {
-    let mut out = String::with_capacity(fmt.len() + value.len());
-    let mut chars = fmt.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '\\' {
-            if let Some(&n) = chars.peek() {
-                out.push(n);
-                chars.next();
-            }
-        } else if c == '$' {
-            let mut name = String::new();
-            while let Some(&n) = chars.peek() {
-                if n.is_ascii_alphanumeric() || n == '_' {
-                    name.push(n);
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            if name == "env_value" {
-                out.push_str(value);
-            }
-        } else if c == '[' || c == ']' {
-            continue;
-        } else if c == '(' {
-            let mut depth = 1;
-            for n in chars.by_ref() {
-                if n == '(' {
-                    depth += 1;
-                } else if n == ')' {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
 }
 
 /// Helper: construct an `EnvVarEntry` for an inline declaration in
@@ -114,15 +69,17 @@ pub fn entry(variable: &str, format: &str, style: &str) -> EnvVarEntry {
 mod tests {
     use super::*;
 
+    use seki_core::format::render_one;
+
     #[test]
     fn renders_workspace_bracket_format() {
-        let out = render_format("[\\[$env_value\\]]($style) ", "pleme-io");
+        let out = render_one("[\\[$env_value\\]]($style) ", "env_value", "pleme-io");
         assert_eq!(out, "[pleme-io] ");
     }
 
     #[test]
     fn renders_tear_session_format() {
-        let out = render_format("[~ $env_value]($style) ", "main");
+        let out = render_one("[~ $env_value]($style) ", "env_value", "main");
         assert_eq!(out, "~ main ");
     }
 }

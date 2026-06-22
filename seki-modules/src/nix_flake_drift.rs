@@ -89,7 +89,11 @@ impl Module for NixFlakeDriftModule {
 
 fn build_segment(cfg: &NixFlakeDriftConfig, count: u32, stale: bool) -> Segment {
     let status_label = format_status(count, stale);
-    let text = render_format(&cfg.format, count, &status_label);
+    let text = seki_core::format::render(&cfg.format, |__n| match __n {
+        "count" => Some(count.to_string()),
+        "status" => Some(status_label.to_owned()),
+        _ => None,
+    });
     let style = pick_style(cfg, count);
     Segment::new("nix_flake_drift").push(StyledFragment::new(text, style))
 }
@@ -110,50 +114,6 @@ pub fn format_status(count: u32, stale: bool) -> String {
         s.push_str(" (stale)");
     }
     s
-}
-
-pub fn render_format(fmt: &str, count: u32, status: &str) -> String {
-    let mut out = String::with_capacity(fmt.len());
-    let mut chars = fmt.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '$' {
-            let mut name = String::new();
-            while let Some(&n) = chars.peek() {
-                if n.is_ascii_alphanumeric() || n == '_' {
-                    name.push(n);
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            match name.as_str() {
-                "count" => out.push_str(&count.to_string()),
-                "status" => out.push_str(status),
-                _ => {}
-            }
-        } else if c == '[' || c == ']' {
-        } else if c == '(' {
-            let mut depth = 1;
-            for n in chars.by_ref() {
-                if n == '(' {
-                    depth += 1;
-                } else if n == ')' {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-        } else if c == '\\' {
-            if let Some(&n) = chars.peek() {
-                out.push(n);
-                chars.next();
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -430,7 +390,11 @@ mod tests {
 
     #[test]
     fn render_format_count_substitution() {
-        let out = render_format("[$status]($style)", 7, "drift: 7");
+        let out = seki_core::format::render("[$status]($style)", |__n| match __n {
+            "count" => Some(7u32.to_string()),
+            "status" => Some("drift: 7".to_owned()),
+            _ => None,
+        });
         assert_eq!(out, "drift: 7");
     }
 

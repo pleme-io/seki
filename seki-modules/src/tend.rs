@@ -106,7 +106,11 @@ impl Module for TendModule {
 /// Build the typed [`Segment`] from a count + a tier-derived style.
 fn build_segment(cfg: &TendConfig, count: u32, stale: bool) -> Segment {
     let status_label = format_status(count, stale);
-    let text = render_format(&cfg.format, count, &status_label);
+    let text = seki_core::format::render(&cfg.format, |__n| match __n {
+        "count" => Some(count.to_string()),
+        "status" => Some(status_label.to_owned()),
+        _ => None,
+    });
     let style = pick_style(cfg, count);
     Segment::new("tend").push(StyledFragment::new(text, style))
 }
@@ -137,54 +141,6 @@ pub fn format_status(count: u32, stale: bool) -> String {
     };
     if stale {
         out.push_str(" (stale)");
-    }
-    out
-}
-
-/// Render the format string. Substitutions: `$count`, `$status`.
-/// Starship-style `[…]($style)` markup is stripped (the renderer
-/// applies `style` directly). Mirrors `shikumi_tier::render_format`.
-pub fn render_format(fmt: &str, count: u32, status: &str) -> String {
-    let mut out = String::with_capacity(fmt.len());
-    let mut chars = fmt.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '$' {
-            let mut name = String::new();
-            while let Some(&n) = chars.peek() {
-                if n.is_ascii_alphanumeric() || n == '_' {
-                    name.push(n);
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            match name.as_str() {
-                "count" => out.push_str(&count.to_string()),
-                "status" => out.push_str(status),
-                _ => {}
-            }
-        } else if c == '[' || c == ']' {
-            // strip starship markup
-        } else if c == '(' {
-            let mut depth = 1;
-            for n in chars.by_ref() {
-                if n == '(' {
-                    depth += 1;
-                } else if n == ')' {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-        } else if c == '\\' {
-            if let Some(&n) = chars.peek() {
-                out.push(n);
-                chars.next();
-            }
-        } else {
-            out.push(c);
-        }
     }
     out
 }
@@ -316,13 +272,21 @@ workspace: b
 
     #[test]
     fn render_format_count_substitution() {
-        let out = render_format("[$status: $count]($style)", 7, "tend: 7 dirty");
+        let out = seki_core::format::render("[$status: $count]($style)", |__n| match __n {
+            "count" => Some(7u32.to_string()),
+            "status" => Some("tend: 7 dirty".to_owned()),
+            _ => None,
+        });
         assert_eq!(out, "tend: 7 dirty: 7");
     }
 
     #[test]
     fn render_format_default_template() {
-        let out = render_format("[$status]($style)", 0, "tend: clean");
+        let out = seki_core::format::render("[$status]($style)", |__n| match __n {
+            "count" => Some(0u32.to_string()),
+            "status" => Some("tend: clean".to_owned()),
+            _ => None,
+        });
         assert_eq!(out, "tend: clean");
     }
 

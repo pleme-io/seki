@@ -52,7 +52,7 @@ impl Module for CustomModule {
             if output.is_empty() {
                 continue;
             }
-            let text = render_format(&entry.format, &output);
+            let text = seki_core::format::render_one(&entry.format, "output", &output);
             if text.is_empty() {
                 continue;
             }
@@ -101,50 +101,12 @@ pub fn entry(description: &str, command: &str, when: Option<&str>, format: &str,
     }
 }
 
-pub fn render_format(fmt: &str, output: &str) -> String {
-    let mut out = String::with_capacity(fmt.len() + output.len());
-    let mut chars = fmt.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '$' {
-            let mut name = String::new();
-            while let Some(&n) = chars.peek() {
-                if n.is_ascii_alphanumeric() || n == '_' {
-                    name.push(n);
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            if name == "output" {
-                out.push_str(output);
-            }
-        } else if c == '[' || c == ']' {
-            continue;
-        } else if c == '(' {
-            let mut depth = 1;
-            for n in chars.by_ref() {
-                if n == '(' {
-                    depth += 1;
-                } else if n == ')' {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use seki_core::format::render_one;
 
     #[test]
     fn renders_tear_pane_format() {
-        assert_eq!(render_format("[· $output]($style) ", "abcdef"), "· abcdef ");
+        assert_eq!(render_one("[· $output]($style) ", "output", "abcdef"), "· abcdef ");
     }
 }

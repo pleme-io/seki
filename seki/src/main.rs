@@ -21,6 +21,9 @@ use seki_modules::default_registry;
 use seki_shikumi::TieredSekiConfig;
 use shikumi::cli::ConfigShowCommand;
 
+#[cfg(unix)]
+mod daemon;
+
 #[derive(Parser, Debug)]
 #[command(name = "seki", version, about = "席 — typed prompt renderer")]
 struct Cli {
@@ -38,6 +41,11 @@ enum Commands {
     Module(ModuleArgs),
     /// Show the materialized config at a tier (bare/default/…).
     ConfigShow(ConfigShowCommand),
+    /// Run the refresh daemon — an FS-watch hot status cache that keeps
+    /// git status fresh + instant. Start it once per session (e.g. from
+    /// the shell rc, or via `SEKI_DAEMON=auto`); `seki prompt` reads it
+    /// when present and falls back to a live fork otherwise.
+    Daemon,
 }
 
 #[derive(clap::Args, Debug)]
@@ -87,7 +95,18 @@ fn main() -> Result<()> {
             cmd.run::<TieredSekiConfig>("SEKI_TIER")?;
             Ok(())
         }
+        Some(Commands::Daemon) => run_daemon(),
     }
+}
+
+#[cfg(unix)]
+fn run_daemon() -> Result<()> {
+    daemon::run()
+}
+
+#[cfg(not(unix))]
+fn run_daemon() -> Result<()> {
+    Err(anyhow!("the seki refresh daemon requires a unix platform"))
 }
 
 fn run_init(args: &InitArgs) -> Result<()> {
@@ -110,6 +129,11 @@ fn run_prompt(args: &PromptArgs) -> Result<()> {
         .with_colors(!args.no_color);
     let rendered = render_prompt(&cfg, &registry, &ctx)?;
     print!("{}", rendered.raw);
+    // Opt-in (`SEKI_DAEMON=auto`): after the first prompt renders live,
+    // bring up the FS-watch hot-cache daemon so every subsequent prompt
+    // this session reads a hot, never-stale status instantly.
+    #[cfg(unix)]
+    daemon::maybe_autostart();
     Ok(())
 }
 

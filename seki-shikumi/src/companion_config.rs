@@ -36,12 +36,16 @@ pub fn companion_config() -> SekiConfig {
 
     // directory — 📁 the anchor. Renders on every prompt; everything else
     // is conditional, so this emoji + the path is the "short" baseline.
-    c.directory.format = "📁 [$path]($style)".to_owned();
+    // Trailing space (every segment owns its own trailing space, none
+    // lead) so the path never abuts the next segment / the ❄ character.
+    c.directory.format = "📁 [$path]($style) ".to_owned();
 
     // git_branch — 🌿 the green sprig: the warm, growing, Brazilian-nature
     // touch on an otherwise icy prompt. Nord aurora green retained.
+    // Trailing space (consistent spacing rule): `🌿 main ` then git_status
+    // or the ❄ character, never `main🟡` / `main❄`.
     c.git_branch.symbol = "🌿 ".to_owned();
-    c.git_branch.format = " [$symbol$branch]($style)".to_owned();
+    c.git_branch.format = "[$symbol$branch]($style) ".to_owned();
 
     // git_status — emoji status dots (warm flag-ish hues), kept compact.
     // ahead/behind/diverged keep their fleet ⇡⇣⇕ glyphs + counts (crucial),
@@ -79,6 +83,21 @@ pub fn companion_config() -> SekiConfig {
     // cmd_duration — ⏱ the ember: the companion "that took a while" beat,
     // only when a command ran > 2s. Warm Nord orange retained.
     c.cmd_duration.format = "⏱ [$duration]($style) ".to_owned();
+
+    // rust — 🦀 the fleet's mother tongue. pleme-io is a Rust-dominant
+    // fleet, so the toolchain channel is *standard context* — but the
+    // segment is conditional (only when a Cargo.toml / rust-toolchain is
+    // detected), so it's silent outside Rust work and present across the
+    // fleet. Inserted just before the ❄ character. Nord aurora red, and
+    // (per the fleet spacing rule) it owns its own trailing space.
+    c.rust.enabled = true;
+    c.rust.symbol = "🦀 ".to_owned();
+    c.rust.prefix = String::new();
+    c.rust.suffix = " ".to_owned();
+    c.rust.style = seki_core::style::StyleSpec::new("bold #BF616A"); // nord aurora red
+    if let Some(pos) = c.prompt_order.iter().position(|s| s == "character") {
+        c.prompt_order.insert(pos, "rust".to_owned());
+    }
 
     // character — the ❄ stays (fleet signature; success frost cyan, error
     // aurora red). The warmth lives in the accents above, not the anchor.

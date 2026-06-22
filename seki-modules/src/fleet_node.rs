@@ -82,12 +82,12 @@ impl Module for FleetNodeModule {
                 }
             }
         };
-        let text = render_format(
-            &self.cfg.format,
-            &manifest.node_name,
-            &manifest.cluster,
-            &manifest.role,
-        );
+        let text = seki_core::format::render(&self.cfg.format, |__n| match __n {
+            "node" => Some(manifest.node_name.to_owned()),
+            "cluster" => Some(manifest.cluster.to_owned()),
+            "role" => Some(manifest.role.to_owned()),
+            _ => None,
+        });
         Ok(Some(
             Segment::new("fleet_node").push(StyledFragment::new(text, self.cfg.style.resolve())),
         ))
@@ -121,54 +121,6 @@ pub fn load_manifest(path: &std::path::Path) -> Option<NodeManifest> {
 
 pub fn parse_manifest(body: &str) -> Option<NodeManifest> {
     serde_yaml::from_str(body).ok()
-}
-
-/// Render the format string. Substitutions: `$node`, `$cluster`, `$role`.
-/// Mirrors `shikumi_tier::render_format` field-for-field.
-pub fn render_format(fmt: &str, node: &str, cluster: &str, role: &str) -> String {
-    let mut out = String::with_capacity(fmt.len());
-    let mut chars = fmt.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '$' {
-            let mut name = String::new();
-            while let Some(&n) = chars.peek() {
-                if n.is_ascii_alphanumeric() || n == '_' {
-                    name.push(n);
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            match name.as_str() {
-                "node" => out.push_str(node),
-                "cluster" => out.push_str(cluster),
-                "role" => out.push_str(role),
-                _ => {}
-            }
-        } else if c == '[' || c == ']' {
-            // strip starship markup
-        } else if c == '(' {
-            let mut depth = 1;
-            for n in chars.by_ref() {
-                if n == '(' {
-                    depth += 1;
-                } else if n == ')' {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-        } else if c == '\\' {
-            if let Some(&n) = chars.peek() {
-                out.push(n);
-                chars.next();
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
 }
 
 #[cfg(test)]
@@ -212,7 +164,12 @@ mod tests {
         // Format mirrors shikumi_tier's `[..]($style)` shape: parens
         // are reserved for the style marker. Author-visible role
         // goes between non-paren delimiters.
-        let out = render_format("[$node/$cluster $role]($style)", "n", "c", "r");
+        let out = seki_core::format::render("[$node/$cluster $role]($style)", |__n| match __n {
+            "node" => Some("n".to_owned()),
+            "cluster" => Some("c".to_owned()),
+            "role" => Some("r".to_owned()),
+            _ => None,
+        });
         assert_eq!(out, "n/c r");
     }
 

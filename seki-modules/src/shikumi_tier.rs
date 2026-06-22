@@ -46,7 +46,13 @@ impl Module for ShikumiTierModule {
         }
         let rendered: Vec<String> = hits
             .into_iter()
-            .map(|(app, tier)| render_format(&self.cfg.format, &app, &tier))
+            .map(|(app, tier)| {
+                seki_core::format::render(&self.cfg.format, |__n| match __n {
+                    "app" => Some(app.to_owned()),
+                    "tier" => Some(tier.to_owned()),
+                    _ => None,
+                })
+            })
             .collect();
         let text = rendered.join(&self.cfg.separator);
         Ok(Some(Segment::new("shikumi_tier").push(StyledFragment::new(
@@ -75,55 +81,6 @@ where
 
 fn env_lookup(name: &str) -> Option<String> {
     std::env::var(name).ok().filter(|s| !s.is_empty())
-}
-
-/// Render the format string. Substitutions: `$app`, `$tier`.
-/// Starship-style `[…]($style)` markup stripped (renderer applies
-/// `style` directly).
-pub fn render_format(fmt: &str, app: &str, tier: &str) -> String {
-    let mut out = String::with_capacity(fmt.len());
-    let mut chars = fmt.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '$' {
-            let mut name = String::new();
-            while let Some(&n) = chars.peek() {
-                if n.is_ascii_alphanumeric() || n == '_' {
-                    name.push(n);
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            match name.as_str() {
-                "app" => out.push_str(app),
-                "tier" => out.push_str(tier),
-                _ => {} // drop $style and unknowns
-            }
-        } else if c == '[' || c == ']' {
-            // strip starship markup
-        } else if c == '(' {
-            // skip parenthesised style spec
-            let mut depth = 1;
-            for n in chars.by_ref() {
-                if n == '(' {
-                    depth += 1;
-                } else if n == ')' {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-        } else if c == '\\' {
-            if let Some(&n) = chars.peek() {
-                out.push(n);
-                chars.next();
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
 }
 
 #[cfg(test)]
@@ -166,13 +123,13 @@ mod tests {
 
     #[test]
     fn render_format_app_and_tier_substitution() {
-        let out = render_format("[$app:$tier]($style)", "mado", "bare");
+        let out = seki_core::format::render_vars("[$app:$tier]($style)", &[("app", "mado"), ("tier", "bare")]);
         assert_eq!(out, "mado:bare");
     }
 
     #[test]
     fn render_format_handles_plain_template() {
-        let out = render_format("$app=$tier", "tatara", "default");
+        let out = seki_core::format::render_vars("$app=$tier", &[("app", "tatara"), ("tier", "default")]);
         assert_eq!(out, "tatara=default");
     }
 }

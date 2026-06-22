@@ -139,7 +139,12 @@ pub fn build_probe_url(base: &str, path: &str) -> String {
 
 fn build_segment(cfg: &ShigotoConfig, running: u32, pending: u32, stale: bool) -> Segment {
     let status_label = format_status(running, pending, stale);
-    let text = render_format(&cfg.format, running, pending, &status_label);
+    let text = seki_core::format::render(&cfg.format, |__n| match __n {
+        "running" => Some(running.to_string()),
+        "pending" => Some(pending.to_string()),
+        "status" => Some(status_label.to_owned()),
+        _ => None,
+    });
     let style = pick_style(cfg, running, pending);
     Segment::new("shigoto").push(StyledFragment::new(text, style))
 }
@@ -166,51 +171,6 @@ pub fn format_status(running: u32, pending: u32, stale: bool) -> String {
     };
     if stale {
         out.push_str(" (stale)");
-    }
-    out
-}
-
-pub fn render_format(fmt: &str, running: u32, pending: u32, status: &str) -> String {
-    let mut out = String::with_capacity(fmt.len());
-    let mut chars = fmt.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '$' {
-            let mut name = String::new();
-            while let Some(&n) = chars.peek() {
-                if n.is_ascii_alphanumeric() || n == '_' {
-                    name.push(n);
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            match name.as_str() {
-                "running" => out.push_str(&running.to_string()),
-                "pending" => out.push_str(&pending.to_string()),
-                "status" => out.push_str(status),
-                _ => {}
-            }
-        } else if c == '[' || c == ']' {
-        } else if c == '(' {
-            let mut depth = 1;
-            for n in chars.by_ref() {
-                if n == '(' {
-                    depth += 1;
-                } else if n == ')' {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-        } else if c == '\\' {
-            if let Some(&n) = chars.peek() {
-                out.push(n);
-                chars.next();
-            }
-        } else {
-            out.push(c);
-        }
     }
     out
 }
@@ -386,7 +346,12 @@ mod tests {
 
     #[test]
     fn render_format_default_template() {
-        let out = render_format("[$status]($style)", 1, 2, "shigoto: 1 running, 2 pending");
+        let out = seki_core::format::render("[$status]($style)", |n| match n {
+            "running" => Some("1".to_owned()),
+            "pending" => Some("2".to_owned()),
+            "status" => Some("shigoto: 1 running, 2 pending".to_owned()),
+            _ => None,
+        });
         assert_eq!(out, "shigoto: 1 running, 2 pending");
     }
 

@@ -73,7 +73,7 @@ impl Module for CofreTierModule {
                 }
             }
         };
-        let text = render_format(&self.cfg.format, &manifest.backend);
+        let text = seki_core::format::render_one(&self.cfg.format, "backend", &manifest.backend);
         Ok(Some(
             Segment::new("cofre_tier").push(StyledFragment::new(text, self.cfg.style.resolve())),
         ))
@@ -103,52 +103,6 @@ pub fn load_manifest(path: &std::path::Path) -> Option<CofreManifest> {
 
 pub fn parse_manifest(body: &str) -> Option<CofreManifest> {
     serde_yaml::from_str(body).ok()
-}
-
-/// Render the format string. Substitutions: `$backend`.
-/// Mirrors `shikumi_tier::render_format` field-for-field.
-pub fn render_format(fmt: &str, backend: &str) -> String {
-    let mut out = String::with_capacity(fmt.len());
-    let mut chars = fmt.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '$' {
-            let mut name = String::new();
-            while let Some(&n) = chars.peek() {
-                if n.is_ascii_alphanumeric() || n == '_' {
-                    name.push(n);
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            match name.as_str() {
-                "backend" => out.push_str(backend),
-                _ => {}
-            }
-        } else if c == '[' || c == ']' {
-            // strip starship markup
-        } else if c == '(' {
-            let mut depth = 1;
-            for n in chars.by_ref() {
-                if n == '(' {
-                    depth += 1;
-                } else if n == ')' {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-        } else if c == '\\' {
-            if let Some(&n) = chars.peek() {
-                out.push(n);
-                chars.next();
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
 }
 
 #[cfg(test)]
@@ -185,7 +139,7 @@ mod tests {
 
     #[test]
     fn render_format_substitutes_backend() {
-        let out = render_format("[cofre: $backend]($style)", "akeyless");
+        let out = seki_core::format::render_one("[cofre: $backend]($style)", "backend", "akeyless");
         assert_eq!(out, "cofre: akeyless");
     }
 

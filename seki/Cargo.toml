@@ -22,6 +22,9 @@ clap.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 serde_yaml.workspace = true
+# Refresh daemon FS-watcher — the same notify primitive shikumi
+# hot-reload uses (kernel FSEvents/inotify, event-driven not polling).
+notify = "8"
 
 [lints]
 workspace = true

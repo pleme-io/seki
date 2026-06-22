@@ -53,7 +53,7 @@ impl Module for StylixModule {
         ) else {
             return Ok(None);
         };
-        let text = render_format(&self.cfg.format, &scheme);
+        let text = seki_core::format::render_one(&self.cfg.format, "name", &scheme);
         Ok(Some(Segment::new("stylix").push(StyledFragment::new(
             text,
             self.cfg.style.resolve(),
@@ -97,51 +97,6 @@ where
 
 fn env_lookup(name: &str) -> Option<String> {
     std::env::var(name).ok().filter(|s| !s.is_empty())
-}
-
-/// Render the format string. Substitutions: `$name`. Starship-style
-/// `[…]($style)` markup stripped. Mirrors `shikumi_tier::render_format`.
-pub fn render_format(fmt: &str, name: &str) -> String {
-    let mut out = String::with_capacity(fmt.len());
-    let mut chars = fmt.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '$' {
-            let mut id = String::new();
-            while let Some(&n) = chars.peek() {
-                if n.is_ascii_alphanumeric() || n == '_' {
-                    id.push(n);
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            match id.as_str() {
-                "name" => out.push_str(name),
-                _ => {}
-            }
-        } else if c == '[' || c == ']' {
-        } else if c == '(' {
-            let mut depth = 1;
-            for n in chars.by_ref() {
-                if n == '(' {
-                    depth += 1;
-                } else if n == ')' {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-        } else if c == '\\' {
-            if let Some(&n) = chars.peek() {
-                out.push(n);
-                chars.next();
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
 }
 
 #[cfg(test)]
@@ -233,7 +188,7 @@ mod tests {
 
     #[test]
     fn render_format_name_substitution() {
-        let out = render_format("[stylix: $name]($style)", "nord");
+        let out = seki_core::format::render_one("[stylix: $name]($style)", "name", "nord");
         assert_eq!(out, "stylix: nord");
     }
 

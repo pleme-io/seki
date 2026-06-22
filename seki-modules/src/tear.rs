@@ -56,7 +56,11 @@ impl Module for TearModule {
             None => return Ok(None),
         };
         let pane_short = truncate(&pane, self.cfg.pane_id_len);
-        let text = render_format(&self.cfg.format, &session, &pane_short);
+        let text = seki_core::format::render(&self.cfg.format, |__n| match __n {
+            "session" => Some(session.to_owned()),
+            "pane" => Some(pane_short.to_owned()),
+            _ => None,
+        });
         Ok(Some(
             Segment::new("tear").push(StyledFragment::new(text, self.cfg.style.resolve())),
         ))
@@ -75,53 +79,6 @@ pub fn truncate(s: &str, n: usize) -> String {
         return String::new();
     }
     s.chars().take(n).collect()
-}
-
-/// Render the format string. Substitutions: `$session`, `$pane`.
-/// Mirrors `shikumi_tier::render_format` field-for-field.
-pub fn render_format(fmt: &str, session: &str, pane: &str) -> String {
-    let mut out = String::with_capacity(fmt.len());
-    let mut chars = fmt.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '$' {
-            let mut name = String::new();
-            while let Some(&n) = chars.peek() {
-                if n.is_ascii_alphanumeric() || n == '_' {
-                    name.push(n);
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            match name.as_str() {
-                "session" => out.push_str(session),
-                "pane" => out.push_str(pane),
-                _ => {}
-            }
-        } else if c == '[' || c == ']' {
-            // strip starship markup
-        } else if c == '(' {
-            let mut depth = 1;
-            for n in chars.by_ref() {
-                if n == '(' {
-                    depth += 1;
-                } else if n == ')' {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-        } else if c == '\\' {
-            if let Some(&n) = chars.peek() {
-                out.push(n);
-                chars.next();
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
 }
 
 #[cfg(test)]
@@ -157,13 +114,21 @@ mod tests {
 
     #[test]
     fn render_format_session_and_pane() {
-        let out = render_format("[~ $session] [pane $pane]($style)", "demo", "abc123");
+        let out = seki_core::format::render("[~ $session] [pane $pane]($style)", |n| match n {
+            "session" => Some("demo".to_owned()),
+            "pane" => Some("abc123".to_owned()),
+            _ => None,
+        });
         assert_eq!(out, "~ demo pane abc123");
     }
 
     #[test]
     fn render_format_plain_template() {
-        let out = render_format("$session/$pane", "s", "p");
+        let out = seki_core::format::render("$session/$pane", |n| match n {
+            "session" => Some("s".to_owned()),
+            "pane" => Some("p".to_owned()),
+            _ => None,
+        });
         assert_eq!(out, "s/p");
     }
 

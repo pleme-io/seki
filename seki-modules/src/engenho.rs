@@ -128,7 +128,11 @@ fn build_segment(cfg: &EngenhoConfig, state: ReadyState, stale: bool) -> Segment
         ReadyState::Ready => "ready",
         ReadyState::Degraded => "degraded",
     };
-    let text = render_format(&cfg.format, state_word, &status);
+    let text = seki_core::format::render(&cfg.format, |__n| match __n {
+        "status" => Some(status.to_owned()),
+        "state" => Some(state_word.to_owned()),
+        _ => None,
+    });
     let style = pick_style(cfg, state);
     Segment::new("engenho").push(StyledFragment::new(text, style))
 }
@@ -154,53 +158,6 @@ pub fn format_status(state: ReadyState, stale: bool) -> String {
         s.push_str(" (stale)");
     }
     s
-}
-
-/// Render format string. Substitutions: `$status`, `$state`.
-/// Starship-style `[…]($style)` markup is stripped.
-pub fn render_format(fmt: &str, state: &str, status: &str) -> String {
-    let mut out = String::with_capacity(fmt.len());
-    let mut chars = fmt.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '$' {
-            let mut name = String::new();
-            while let Some(&n) = chars.peek() {
-                if n.is_ascii_alphanumeric() || n == '_' {
-                    name.push(n);
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            match name.as_str() {
-                "status" => out.push_str(status),
-                "state" => out.push_str(state),
-                _ => {}
-            }
-        } else if c == '[' || c == ']' {
-            // strip
-        } else if c == '(' {
-            let mut depth = 1;
-            for n in chars.by_ref() {
-                if n == '(' {
-                    depth += 1;
-                } else if n == ')' {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-        } else if c == '\\' {
-            if let Some(&n) = chars.peek() {
-                out.push(n);
-                chars.next();
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
 }
 
 /// Probe the engenho apiserver with a hard wall-clock budget.
@@ -357,13 +314,19 @@ mod tests {
 
     #[test]
     fn render_format_default_template() {
-        let out = render_format("[$status]($style)", "ready", "engenho: ready");
+        let out = seki_core::format::render("[$status]($style)", |n| match n {
+            "status" => Some("engenho: ready".to_owned()),
+            _ => None,
+        });
         assert_eq!(out, "engenho: ready");
     }
 
     #[test]
     fn render_format_state_substitution() {
-        let out = render_format("$state", "degraded", "engenho: degraded");
+        let out = seki_core::format::render("$state", |n| match n {
+            "state" => Some("degraded".to_owned()),
+            _ => None,
+        });
         assert_eq!(out, "degraded");
     }
 

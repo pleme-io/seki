@@ -50,7 +50,11 @@ impl Module for KindlingPostureModule {
         };
         let style = pick_style(&self.cfg, &level);
         let status_label = format_status(&level);
-        let text = render_format(&self.cfg.format, &level, &status_label);
+        let text = seki_core::format::render(&self.cfg.format, |__n| match __n {
+            "level" => Some(level.to_owned()),
+            "status" => Some(status_label.to_owned()),
+            _ => None,
+        });
         Ok(Some(
             Segment::new("kindling_posture").push(StyledFragment::new(text, style)),
         ))
@@ -109,50 +113,6 @@ pub fn format_status(level: &str) -> String {
     let mut s = String::from("kindling: ");
     s.push_str(level);
     s
-}
-
-pub fn render_format(fmt: &str, level: &str, status: &str) -> String {
-    let mut out = String::with_capacity(fmt.len());
-    let mut chars = fmt.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '$' {
-            let mut name = String::new();
-            while let Some(&n) = chars.peek() {
-                if n.is_ascii_alphanumeric() || n == '_' {
-                    name.push(n);
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            match name.as_str() {
-                "level" => out.push_str(level),
-                "status" => out.push_str(status),
-                _ => {}
-            }
-        } else if c == '[' || c == ']' {
-        } else if c == '(' {
-            let mut depth = 1;
-            for n in chars.by_ref() {
-                if n == '(' {
-                    depth += 1;
-                } else if n == ')' {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-        } else if c == '\\' {
-            if let Some(&n) = chars.peek() {
-                out.push(n);
-                chars.next();
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
 }
 
 #[cfg(test)]
@@ -256,7 +216,7 @@ mod tests {
 
     #[test]
     fn render_format_level_substitution() {
-        let out = render_format("[$status]($style)", "ready", "kindling: ready");
+        let out = seki_core::format::render_one("[$status]($style)", "status", "kindling: ready");
         assert_eq!(out, "kindling: ready");
     }
 

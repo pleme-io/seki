@@ -136,7 +136,12 @@ fn env_lookup(name: &str) -> Option<String> {
 
 fn build_segment(cfg: &MadoSessionConfig, sessions: u32, fps: u32, stale: bool) -> Segment {
     let status_label = format_status(sessions, fps, stale);
-    let text = render_format(&cfg.format, sessions, fps, &status_label);
+    let text = seki_core::format::render(&cfg.format, |__n| match __n {
+        "sessions" => Some(sessions.to_string()),
+        "fps" => Some(fps.to_string()),
+        "status" => Some(status_label.to_owned()),
+        _ => None,
+    });
     let style = cfg.style.resolve();
     Segment::new("mado_session").push(StyledFragment::new(text, style))
 }
@@ -151,51 +156,6 @@ pub fn format_status(sessions: u32, fps: u32, stale: bool) -> String {
         s.push_str(" (stale)");
     }
     s
-}
-
-pub fn render_format(fmt: &str, sessions: u32, fps: u32, status: &str) -> String {
-    let mut out = String::with_capacity(fmt.len());
-    let mut chars = fmt.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '$' {
-            let mut name = String::new();
-            while let Some(&n) = chars.peek() {
-                if n.is_ascii_alphanumeric() || n == '_' {
-                    name.push(n);
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            match name.as_str() {
-                "sessions" => out.push_str(&sessions.to_string()),
-                "fps" => out.push_str(&fps.to_string()),
-                "status" => out.push_str(status),
-                _ => {}
-            }
-        } else if c == '[' || c == ']' {
-        } else if c == '(' {
-            let mut depth = 1;
-            for n in chars.by_ref() {
-                if n == '(' {
-                    depth += 1;
-                } else if n == ')' {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-        } else if c == '\\' {
-            if let Some(&n) = chars.peek() {
-                out.push(n);
-                chars.next();
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
 }
 
 fn probe_mado(socket: &Path, timeout_ms: u64) -> Option<(u32, u32)> {
@@ -360,13 +320,21 @@ mod tests {
 
     #[test]
     fn render_format_default_template() {
-        let out = render_format("[$status]($style)", 2, 60, "mado: 2 sess, 60 fps");
+        let out = seki_core::format::render_one(
+            "[$status]($style)",
+            "status",
+            "mado: 2 sess, 60 fps",
+        );
         assert_eq!(out, "mado: 2 sess, 60 fps");
     }
 
     #[test]
     fn render_format_sessions_substitution() {
-        let out = render_format("sess=$sessions fps=$fps", 4, 120, "_");
+        let out = seki_core::format::render("sess=$sessions fps=$fps", |__n| match __n {
+            "sessions" => Some("4".to_owned()),
+            "fps" => Some("120".to_owned()),
+            _ => None,
+        });
         assert_eq!(out, "sess=4 fps=120");
     }
 

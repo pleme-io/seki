@@ -62,7 +62,10 @@ impl Module for BlackmatterModule {
         ) else {
             return Ok(None);
         };
-        let text = render_format(&self.cfg.format, count);
+        let text = seki_core::format::render(&self.cfg.format, |__n| match __n {
+            "count" => Some(count.to_string()),
+            _ => None,
+        });
         Ok(Some(Segment::new("blackmatter").push(StyledFragment::new(
             text,
             self.cfg.style.resolve(),
@@ -144,51 +147,6 @@ pub fn count_known_dirs(root: PathBuf, known: &[String]) -> usize {
 
 fn env_lookup(name: &str) -> Option<String> {
     std::env::var(name).ok().filter(|s| !s.is_empty())
-}
-
-/// Render the format string. Substitutions: `$count`. Starship-style
-/// `[…]($style)` markup stripped. Mirrors `shikumi_tier::render_format`.
-pub fn render_format(fmt: &str, count: usize) -> String {
-    let mut out = String::with_capacity(fmt.len());
-    let mut chars = fmt.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '$' {
-            let mut id = String::new();
-            while let Some(&n) = chars.peek() {
-                if n.is_ascii_alphanumeric() || n == '_' {
-                    id.push(n);
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            match id.as_str() {
-                "count" => out.push_str(&count.to_string()),
-                _ => {}
-            }
-        } else if c == '[' || c == ']' {
-        } else if c == '(' {
-            let mut depth = 1;
-            for n in chars.by_ref() {
-                if n == '(' {
-                    depth += 1;
-                } else if n == ')' {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-        } else if c == '\\' {
-            if let Some(&n) = chars.peek() {
-                out.push(n);
-                chars.next();
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
 }
 
 #[cfg(test)]
@@ -307,7 +265,11 @@ mod tests {
 
     #[test]
     fn render_format_count_substitution() {
-        assert_eq!(render_format("[bm: $count]($style)", 7), "bm: 7");
+        let out = seki_core::format::render("[bm: $count]($style)", |n| match n {
+            "count" => Some(7usize.to_string()),
+            _ => None,
+        });
+        assert_eq!(out, "bm: 7");
     }
 
     #[test]
