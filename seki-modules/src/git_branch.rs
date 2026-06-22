@@ -41,11 +41,17 @@ impl Module for GitBranchModule {
         };
         let truncated =
             truncate_branch(&branch, self.cfg.truncation_length as usize, &self.cfg.truncation_symbol);
-        let mut text = String::new();
-        text.push_str(&self.cfg.prefix);
-        text.push_str(&self.cfg.symbol);
-        text.push_str(&truncated);
-        text.push_str(&self.cfg.suffix);
+        // Typed `format` is authoritative (e.g. companion's
+        // " [$symbol$branch]"), rendered through the shared engine so
+        // the leading space + 🌿 symbol land consistently.
+        let text = seki_core::format::render(&self.cfg.format, |name| match name {
+            "symbol" => Some(self.cfg.symbol.clone()),
+            "branch" => Some(truncated.clone()),
+            _ => None,
+        });
+        if text.is_empty() {
+            return Ok(None);
+        }
         Ok(Some(Segment::new("git_branch").push(StyledFragment::new(
             text,
             self.cfg.style.resolve(),

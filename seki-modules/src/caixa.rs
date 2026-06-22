@@ -58,7 +58,11 @@ impl Module for CaixaModule {
             Some(kind) => (kind, self.cfg.style.resolve()),
             None => ("?".to_owned(), self.cfg.error_style.resolve()),
         };
-        let text = render_format(&self.cfg.format, &kind_text, &rel);
+        let text = seki_core::format::render(&self.cfg.format, |__n| match __n {
+            "kind" => Some(kind_text.to_owned()),
+            "path" => Some(rel.to_owned()),
+            _ => None,
+        });
         Ok(Some(
             Segment::new("caixa").push(StyledFragment::new(text, style)),
         ))
@@ -152,54 +156,6 @@ pub fn relative_path(cwd: &Path, caixa_path: &Path) -> String {
     caixa_path.display().to_string()
 }
 
-/// Render the format string. Substitutions: `$kind`, `$path`.
-/// Starship-style `[…]($style)` markup is stripped (the renderer
-/// applies `style` directly). Mirrors `shikumi_tier::render_format`.
-pub fn render_format(fmt: &str, kind: &str, path: &str) -> String {
-    let mut out = String::with_capacity(fmt.len());
-    let mut chars = fmt.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '$' {
-            let mut name = String::new();
-            while let Some(&n) = chars.peek() {
-                if n.is_ascii_alphanumeric() || n == '_' {
-                    name.push(n);
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            match name.as_str() {
-                "kind" => out.push_str(kind),
-                "path" => out.push_str(path),
-                _ => {}
-            }
-        } else if c == '[' || c == ']' {
-            // strip starship markup
-        } else if c == '(' {
-            let mut depth = 1;
-            for n in chars.by_ref() {
-                if n == '(' {
-                    depth += 1;
-                } else if n == ')' {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-        } else if c == '\\' {
-            if let Some(&n) = chars.peek() {
-                out.push(n);
-                chars.next();
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -256,13 +212,17 @@ mod tests {
 
     #[test]
     fn render_format_kind_substitution() {
-        let out = render_format("[$kind]($style)", "Biblioteca", ".");
+        let out = seki_core::format::render_one("[$kind]($style)", "kind", "Biblioteca");
         assert_eq!(out, "Biblioteca");
     }
 
     #[test]
     fn render_format_kind_and_path_substitution() {
-        let out = render_format("$kind@$path", "Servico", "svc/caixa.lisp");
+        let out = seki_core::format::render("$kind@$path", |__n| match __n {
+            "kind" => Some("Servico".to_owned()),
+            "path" => Some("svc/caixa.lisp".to_owned()),
+            _ => None,
+        });
         assert_eq!(out, "Servico@svc/caixa.lisp");
     }
 

@@ -36,7 +36,7 @@ impl Module for HostnameModule {
             return Ok(None);
         };
         let trimmed = trim_at(&host, &self.cfg.trim_at);
-        let text = render_format(&self.cfg.format, &trimmed);
+        let text = seki_core::format::render_one(&self.cfg.format, "hostname", &trimmed);
         Ok(Some(Segment::new("hostname").push(StyledFragment::new(
             text,
             self.cfg.style.resolve(),
@@ -101,61 +101,10 @@ unsafe extern "C" {
     fn libc_gethostname(name: *mut i8, len: usize) -> i32;
 }
 
-/// Render a starship-style format string. Supports `$hostname` and
-/// `$style` substitutions. Style markup like `[$hostname](dimmed $style)`
-/// is reduced to the inner text — colour is applied separately by
-/// the renderer via the segment's `Style`.
-pub fn render_format(fmt: &str, host: &str) -> String {
-    let mut out = String::with_capacity(fmt.len() + host.len());
-    let mut chars = fmt.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '$' {
-            let mut name = String::new();
-            while let Some(&n) = chars.peek() {
-                if n.is_ascii_alphanumeric() || n == '_' {
-                    name.push(n);
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            if name == "hostname" {
-                out.push_str(host);
-            } else {
-                // Unknown substitution — emit nothing. style markup
-                // like $style is dropped silently.
-            }
-        } else if c == '[' || c == ']' {
-            // strip starship-style markup; colour is on the Segment
-        } else if c == '(' {
-            // skip a parenthesised style spec — anything up to the
-            // matching ')'.
-            let mut depth = 1;
-            for n in chars.by_ref() {
-                if n == '(' {
-                    depth += 1;
-                } else if n == ')' {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-        } else if c == '\\' {
-            if let Some(&n) = chars.peek() {
-                out.push(n);
-                chars.next();
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use seki_core::format::render_one;
 
     #[test]
     fn trim_at_dot() {
@@ -166,13 +115,13 @@ mod tests {
 
     #[test]
     fn render_format_strips_markup() {
-        let out = render_format("[$hostname](dimmed $style) · ", "rio");
+        let out = render_one("[$hostname](dimmed $style) · ", "hostname", "rio");
         assert_eq!(out, "rio · ");
     }
 
     #[test]
     fn render_format_handles_plain_hostname() {
-        let out = render_format("$hostname", "rio");
+        let out = render_one("$hostname", "hostname", "rio");
         assert_eq!(out, "rio");
     }
 }

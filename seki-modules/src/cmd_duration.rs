@@ -36,7 +36,7 @@ impl Module for CmdDurationModule {
             return Ok(None);
         }
         let duration = format_duration(ms, self.cfg.show_milliseconds);
-        let text = render_format(&self.cfg.format, &duration);
+        let text = seki_core::format::render_one(&self.cfg.format, "duration", &duration);
         Ok(Some(Segment::new("cmd_duration").push(StyledFragment::new(
             text,
             self.cfg.style.resolve(),
@@ -92,47 +92,10 @@ fn format_3digit(ms: u64) -> String {
     }
 }
 
-pub fn render_format(fmt: &str, duration: &str) -> String {
-    let mut out = String::with_capacity(fmt.len() + duration.len());
-    let mut chars = fmt.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '$' {
-            let mut name = String::new();
-            while let Some(&n) = chars.peek() {
-                if n.is_ascii_alphanumeric() || n == '_' {
-                    name.push(n);
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            if name == "duration" {
-                out.push_str(duration);
-            }
-        } else if c == '[' || c == ']' {
-            continue;
-        } else if c == '(' {
-            let mut depth = 1;
-            for n in chars.by_ref() {
-                if n == '(' {
-                    depth += 1;
-                } else if n == ')' {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use seki_core::format::render_one;
 
     #[test]
     fn format_seconds() {
@@ -157,7 +120,7 @@ mod tests {
     #[test]
     fn render_strips_starship_markup() {
         assert_eq!(
-            render_format("[$duration]($style) ", "5s"),
+            render_one("[$duration]($style) ", "duration", "5s"),
             "5s "
         );
     }

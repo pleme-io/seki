@@ -84,7 +84,11 @@ impl Module for TataraWorkloadModule {
 
 fn build_segment(cfg: &TataraWorkloadConfig, count: u32, stale: bool) -> Segment {
     let status_label = format_status(count, stale);
-    let text = render_format(&cfg.format, count, &status_label);
+    let text = seki_core::format::render(&cfg.format, |__n| match __n {
+        "count" => Some(count.to_string()),
+        "status" => Some(status_label.to_owned()),
+        _ => None,
+    });
     let style = cfg.style.resolve();
     Segment::new("tatara_workload").push(StyledFragment::new(text, style))
 }
@@ -97,50 +101,6 @@ pub fn format_status(count: u32, stale: bool) -> String {
         s.push_str(" (stale)");
     }
     s
-}
-
-pub fn render_format(fmt: &str, count: u32, status: &str) -> String {
-    let mut out = String::with_capacity(fmt.len());
-    let mut chars = fmt.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '$' {
-            let mut name = String::new();
-            while let Some(&n) = chars.peek() {
-                if n.is_ascii_alphanumeric() || n == '_' {
-                    name.push(n);
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            match name.as_str() {
-                "count" => out.push_str(&count.to_string()),
-                "status" => out.push_str(status),
-                _ => {}
-            }
-        } else if c == '[' || c == ']' {
-        } else if c == '(' {
-            let mut depth = 1;
-            for n in chars.by_ref() {
-                if n == '(' {
-                    depth += 1;
-                } else if n == ')' {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-        } else if c == '\\' {
-            if let Some(&n) = chars.peek() {
-                out.push(n);
-                chars.next();
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
 }
 
 fn probe_tatara(command: &str, timeout_ms: u64) -> Option<u32> {
@@ -250,13 +210,16 @@ mod tests {
 
     #[test]
     fn render_format_default_template() {
-        let out = render_format("[$status]($style)", 3, "tatara: 3 alloc");
+        let out = seki_core::format::render_vars(
+            "[$status]($style)",
+            &[("count", "3"), ("status", "tatara: 3 alloc")],
+        );
         assert_eq!(out, "tatara: 3 alloc");
     }
 
     #[test]
     fn render_format_count_substitution() {
-        let out = render_format("alloc=$count", 9, "_");
+        let out = seki_core::format::render_vars("alloc=$count", &[("count", "9"), ("status", "_")]);
         assert_eq!(out, "alloc=9");
     }
 

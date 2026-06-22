@@ -48,15 +48,24 @@ impl Module for NixShellModule {
         let state = detect_state(env.as_deref());
         let label = match state {
             NixState::None => return Ok(None),
-            NixState::Pure => &self.cfg.pure_format,
-            NixState::Impure => &self.cfg.impure_format,
-            NixState::Unknown => &self.cfg.unknown_format,
+            NixState::Pure => self.cfg.pure_format.clone(),
+            NixState::Impure => self.cfg.impure_format.clone(),
+            NixState::Unknown => self.cfg.unknown_format.clone(),
         };
-        let mut text = String::new();
-        text.push_str(&self.cfg.prefix);
-        text.push_str(&self.cfg.symbol);
-        text.push_str(label);
-        text.push_str(&self.cfg.suffix);
+        // Typed `format` is authoritative — blzsh/companion use
+        // "[$symbol]($style) " (the ❄ anchor); the default config's
+        // richer "[$symbol$state( \($name\))]" also renders here. No
+        // devshell-name source today, so `$name` is empty (its
+        // conditional group drops cleanly).
+        let text = seki_core::format::render(&self.cfg.format, |name| match name {
+            "symbol" => Some(self.cfg.symbol.clone()),
+            "state" => Some(label.clone()),
+            "name" => Some(String::new()),
+            _ => None,
+        });
+        if text.is_empty() {
+            return Ok(None);
+        }
         Ok(Some(Segment::new("nix_shell").push(StyledFragment::new(
             text,
             self.cfg.style.resolve(),

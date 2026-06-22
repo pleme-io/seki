@@ -82,16 +82,33 @@
             };
           };
           git_status = {
-            description = "Coarse worktree status (clean/modified/conflicted).";
+            description = ''
+              Live worktree status as per-category emoji/glyph indicators.
+              Each non-zero category renders its symbol (companion defaults:
+              🟡 modified · 🟢 staged · ⚪ untracked · 🔴 deleted · 🔁 renamed ·
+              💥 conflicted · 📦 stashed) plus ahead/behind (⇡N ⇣N ⇕). Status
+              is computed live (porcelain v2) or read hot from the refresh
+              daemon — never stale.
+            '';
             fields = {
               enabled = "render the git_status segment";
-              clean_symbol = "shown when worktree is clean";
-              conflicted_symbol = "shown on merge conflict";
+              format = "starship format, default '[$all_status$ahead_behind]($style) '";
+              modified = "symbol when the worktree has modified files";
+              staged = "symbol for index-staged changes";
+              untracked = "symbol for untracked files";
+              deleted = "symbol for deleted files";
+              renamed = "symbol for renamed files";
+              conflicted = "symbol for merge conflicts";
+              stashed = "symbol when the stash is non-empty";
+              ahead = "ahead-of-upstream glyph (supports \${count})";
+              behind = "behind-upstream glyph (supports \${count})";
+              diverged = "diverged glyph (supports \${ahead_count}/\${behind_count})";
+              clean_symbol = "optional symbol when the tree is clean (default: render nothing)";
               style = "starship-flavoured style string";
             };
           };
           rust = {
-            description = "Rust toolchain segment.";
+            description = "Rust toolchain segment — on by default (Rust-dominant fleet); conditional on a detected Cargo/rust-toolchain repo.";
             fields = {
               enabled = "render the rust segment";
               symbol = "leading glyph (default '🦀 ')";
@@ -100,13 +117,39 @@
             };
           };
           nix_shell = {
-            description = "IN_NIX_SHELL-aware segment.";
+            description = "IN_NIX_SHELL-aware segment (the ❄ fleet signature).";
             fields = {
               enabled = "render the nix_shell segment";
               symbol = "leading glyph (default '❄️ ')";
               impure_format = "label when IN_NIX_SHELL=impure";
               pure_format = "label when IN_NIX_SHELL=pure";
               style = "starship-flavoured style string";
+            };
+          };
+          hostname = {
+            description = "System hostname — ssh-only in the companion default (silent locally, appears on a remote fleet node).";
+            fields = {
+              enabled = "render the hostname segment";
+              ssh_only = "only render when over SSH";
+              trim_at = "truncate the hostname at this separator (default '.')";
+              format = "starship format, default '🖥 [$hostname](dimmed $style) '";
+              style = "starship-flavoured style string";
+            };
+          };
+          cmd_duration = {
+            description = "Elapsed time of the previous command, when it exceeded min_time.";
+            fields = {
+              enabled = "render the cmd_duration segment";
+              min_time = "minimum elapsed ms before the segment shows";
+              format = "starship format, default '⏱ [$duration]($style) '";
+              style = "starship-flavoured style string";
+            };
+          };
+          character = {
+            description = "The trailing prompt character — the ❄ fleet snowflake.";
+            fields = {
+              success_symbol = "shown after a 0 exit (default '[❄](bold #88C0D0)')";
+              error_symbol = "shown after a non-zero exit (default '[❄](bold #BF616A)')";
             };
           };
         };

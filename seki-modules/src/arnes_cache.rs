@@ -140,7 +140,11 @@ pub fn resolve_socket(cfg: &ArnesCacheConfig, home: Option<&Path>) -> Option<Pat
 fn build_segment(cfg: &ArnesCacheConfig, rate: f32, stale: bool) -> Segment {
     let pct = rate_to_pct(rate);
     let status = format_status(pct, stale);
-    let text = render_format(&cfg.format, pct, &status);
+    let text = seki_core::format::render(&cfg.format, |__n| match __n {
+        "pct" => Some(pct.to_string()),
+        "status" => Some(status.to_owned()),
+        _ => None,
+    });
     let style = pick_style(cfg, rate);
     Segment::new("arnes_cache").push(StyledFragment::new(text, style))
 }
@@ -172,52 +176,6 @@ pub fn format_status(pct: u32, stale: bool) -> String {
         s.push_str(" (stale)");
     }
     s
-}
-
-/// Render format string. Substitutions: `$pct`, `$status`.
-pub fn render_format(fmt: &str, pct: u32, status: &str) -> String {
-    let mut out = String::with_capacity(fmt.len());
-    let mut chars = fmt.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '$' {
-            let mut name = String::new();
-            while let Some(&n) = chars.peek() {
-                if n.is_ascii_alphanumeric() || n == '_' {
-                    name.push(n);
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            match name.as_str() {
-                "pct" => out.push_str(&pct.to_string()),
-                "status" => out.push_str(status),
-                _ => {}
-            }
-        } else if c == '[' || c == ']' {
-            // strip
-        } else if c == '(' {
-            let mut depth = 1;
-            for n in chars.by_ref() {
-                if n == '(' {
-                    depth += 1;
-                } else if n == ')' {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-        } else if c == '\\' {
-            if let Some(&n) = chars.peek() {
-                out.push(n);
-                chars.next();
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
 }
 
 /// Connect to the arnes Unix socket, send a minimal stats request,
@@ -358,13 +316,19 @@ mod tests {
 
     #[test]
     fn render_format_default_template() {
-        let out = render_format("[$status]($style)", 73, "arnes: 73%");
+        let out = seki_core::format::render("[$status]($style)", |n| match n {
+            "status" => Some("arnes: 73%".to_owned()),
+            _ => None,
+        });
         assert_eq!(out, "arnes: 73%");
     }
 
     #[test]
     fn render_format_pct_substitution() {
-        let out = render_format("$pct%", 50, "arnes: 50%");
+        let out = seki_core::format::render("$pct%", |n| match n {
+            "pct" => Some(50u32.to_string()),
+            _ => None,
+        });
         assert_eq!(out, "50%");
     }
 

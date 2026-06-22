@@ -81,6 +81,12 @@ fn render_frostmourne(f: &mut fmt::Formatter<'_>, bin: &str) -> fmt::Result {
     writeln!(f, ";; `{bin} prompt`'s stdout into PS1 each redraw.")?;
     writeln!(f, ";; Last `defprompt` form loaded wins — drop")?;
     writeln!(f, ";; lisp/10-prompt.lisp from your layer to use this.")?;
+    writeln!(f, ";;")?;
+    writeln!(f, ";; Never-stale refresh: SEKI_DAEMON=auto brings up the")?;
+    writeln!(f, ";; FS-watch hot-status daemon after the first prompt, so")?;
+    writeln!(f, ";; git status stays fresh + instant fleet-wide. `seki")?;
+    writeln!(f, ";; prompt` falls back to a live fork whenever it's absent.")?;
+    writeln!(f, "(defenv :name \"SEKI_DAEMON\" :value \"auto\" :export #t)")?;
     writeln!(f, "(defprompt")?;
     writeln!(
         f,

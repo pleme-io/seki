@@ -46,60 +46,12 @@ impl Module for IshouThemeModule {
 
     fn render(&self, _ctx: &RenderContext) -> SekiResult<Option<Segment>> {
         let theme = prescribed_theme_name();
-        let text = render_format(&self.cfg.format, theme);
+        let text = seki_core::format::render_one(&self.cfg.format, "theme", theme);
         Ok(Some(Segment::new("ishou_theme").push(StyledFragment::new(
             text,
             self.cfg.style.resolve(),
         ))))
     }
-}
-
-/// Render the format string. Substitutions: `$theme`. Starship-style
-/// `[…]($style)` markup stripped (renderer applies `style` directly).
-/// Mirrors `shikumi_tier::render_format`.
-pub fn render_format(fmt: &str, theme: &str) -> String {
-    let mut out = String::with_capacity(fmt.len());
-    let mut chars = fmt.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '$' {
-            let mut name = String::new();
-            while let Some(&n) = chars.peek() {
-                if n.is_ascii_alphanumeric() || n == '_' {
-                    name.push(n);
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            match name.as_str() {
-                "theme" => out.push_str(theme),
-                _ => {} // drop $style and unknowns
-            }
-        } else if c == '[' || c == ']' {
-            // strip starship markup
-        } else if c == '(' {
-            // skip parenthesised style spec
-            let mut depth = 1;
-            for n in chars.by_ref() {
-                if n == '(' {
-                    depth += 1;
-                } else if n == ')' {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-        } else if c == '\\' {
-            if let Some(&n) = chars.peek() {
-                out.push(n);
-                chars.next();
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    out
 }
 
 #[cfg(test)]
@@ -108,13 +60,13 @@ mod tests {
 
     #[test]
     fn render_format_theme_substitution() {
-        let out = render_format("[ishou: $theme]($style)", "PlemeDark");
+        let out = seki_core::format::render_one("[ishou: $theme]($style)", "theme", "PlemeDark");
         assert_eq!(out, "ishou: PlemeDark");
     }
 
     #[test]
     fn render_format_plain_template() {
-        let out = render_format("$theme", "Bare");
+        let out = seki_core::format::render_one("$theme", "theme", "Bare");
         assert_eq!(out, "Bare");
     }
 
