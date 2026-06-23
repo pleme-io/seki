@@ -53,13 +53,44 @@ impl TieredConfig for TieredSekiConfig {
     }
 
     fn prescribed_default() -> Self {
-        // The prescribed default is the emoji-forward "companion" prompt:
-        // the cold Nord-frost base + a touch of Brazilian warmth, each
-        // segment a friendly emoji, short-and-sweet (every segment
-        // conditional, hostname ssh-only). The ❄ snowflake stays the
-        // fleet signature. (vellum_config / blzsh_parity remain available
-        // as alternate themes / the parity reference.)
-        Self(companion_config::companion_config())
+        // The prescribed fleet default = best of the Nord + pleme-io
+        // worlds, built on the blzsh-parity base:
+        //
+        //   * Nord-frost ❄ snowflake character + palette, and the
+        //     substrate segments blzsh-parity already surfaces
+        //     (workspace / tear-session / tear-pane / caixa kind /
+        //     tend status / shikumi tier).
+        //   * the Rust-dominant fleet's toolchain version, re-enabled
+        //     here with the SINGLE-WIDTH `SignalMode::Glyph` Nerd-font
+        //     glyph (`⊿`), never the double-width `🦀` emoji.
+        //
+        // STANDARDIZATION INVARIANT — every glyph the prompt can render
+        // is single-width and lives in the operator's `Symbols Nerd Font
+        // Mono`, so it sits cleanly in the monospace cell grid. This is
+        // deliberately NOT the emoji-forward `companion_config`: its
+        // color-emoji symbols (🌊🔖📁🌿🦀) are absent from the Nerd-font
+        // stack, so terminals fall back to a color-emoji font whose glyph
+        // metrics don't align to the fixed-width prompt and the cursor
+        // visually drifts. The `prescribed_default_is_grid_aligned` test
+        // is the forcing function that keeps any width-2 glyph out of the
+        // default. (`blzsh_parity_config` stays the pure parity reference;
+        // `companion_config` / `vellum_config` remain opt-in themes.)
+        let mut cfg = blzsh_parity::blzsh_parity_config();
+
+        const SIG: ishou_tokens::SekiSignals = ishou_tokens::SekiSignals::prescribed();
+        let mut rust_symbol = SIG.lang_rust.render(ishou_tokens::SignalMode::Glyph).to_owned();
+        rust_symbol.push(' ');
+        cfg.rust = seki_core::config::rust::RustConfig {
+            enabled: true,
+            symbol: rust_symbol,
+            ..seki_core::config::rust::RustConfig::default()
+        };
+        // Surface the rust segment just before the ❄ character anchor.
+        if let Some(pos) = cfg.prompt_order.iter().position(|s| s == "character") {
+            cfg.prompt_order.insert(pos, "rust".to_owned());
+        }
+
+        Self(cfg)
     }
 }
 
@@ -84,9 +115,9 @@ mod tests {
 
     #[test]
     fn prescribed_default_keeps_blzsh_structure() {
-        // The prescribed default is now Vellum-themed but preserves
-        // the blzsh-parity STRUCTURE (segments + order); only the
-        // palette changed.
+        // The prescribed fleet default builds on the blzsh-parity base:
+        // same Nord-frost STRUCTURE (segments + order), plus the
+        // single-width rust toolchain segment (best of Nord + pleme-io).
         let c = TieredSekiConfig::prescribed_default().0;
         // blzsh keeps these enabled
         assert!(c.character.enabled);
@@ -96,16 +127,65 @@ mod tests {
         assert!(c.directory.enabled);
         assert!(c.cmd_duration.enabled);
         assert!(c.nix_shell.enabled);
-        // companion enables the conditional rust segment (Rust-dominant
-        // fleet — silent outside Cargo repos, present across the fleet).
-        assert!(c.rust.enabled, "companion enables rust for the fleet");
+        // pleme-io touch: the Rust-dominant fleet's toolchain segment is
+        // re-enabled (silent outside Cargo repos) with a single-width
+        // glyph — never the double-width 🦀 emoji.
+        assert!(c.rust.enabled, "fleet default enables the rust segment");
         assert!(c.prompt_order.iter().any(|s| s == "rust"));
+        assert!(
+            !c.rust.symbol.contains('🦀'),
+            "rust segment must use the single-width glyph, not the 🦀 emoji",
+        );
         // still disabled
         assert!(!c.kubernetes.enabled);
         assert!(!c.username.enabled);
-        // order anchors preserved: nix_shell first, ❄ character last
+        // order anchors preserved: nix_shell first, ❄ character last,
+        // rust spliced in just before the character anchor.
         assert_eq!(c.prompt_order.first().map(String::as_str), Some("nix_shell"));
         assert_eq!(c.prompt_order.last().map(String::as_str), Some("character"));
+        let rust_pos = c.prompt_order.iter().position(|s| s == "rust").unwrap();
+        let char_pos = c.prompt_order.iter().position(|s| s == "character").unwrap();
+        assert_eq!(rust_pos + 1, char_pos, "rust sits immediately before ❄");
+    }
+
+    /// STANDARDIZATION FORCING FUNCTION — the prompt-misalignment class
+    /// made unrepresentable.
+    ///
+    /// Every glyph the prescribed default prompt can render must be
+    /// single-width (display width ≤ 1) so it sits cleanly in the
+    /// terminal's fixed-width cell grid. Double-width emoji (🌊🔖📁🌿🦀,
+    /// width 2) fall back to a color-emoji font whose metrics don't align
+    /// to the monospace grid → the cursor visually drifts (the exact bug
+    /// the emoji-forward `companion_config` shipped). Serializing the
+    /// whole config catches a stray emoji in ANY segment's symbol/format
+    /// field — enabled or not — so flipping a segment on later can never
+    /// reintroduce the drift. Alternate themes (companion / vellum) may
+    /// opt into emoji; the FLEET DEFAULT may not.
+    #[test]
+    fn prescribed_default_is_grid_aligned() {
+        use unicode_width::UnicodeWidthChar;
+
+        let cfg = TieredSekiConfig::prescribed_default();
+        let serialized =
+            serde_yaml::to_string(&cfg).expect("prescribed default serializes");
+
+        let offenders: Vec<(char, usize)> = serialized
+            .chars()
+            .filter(|c| UnicodeWidthChar::width(*c).unwrap_or(0) > 1)
+            .map(|c| (c, UnicodeWidthChar::width(c).unwrap_or(0)))
+            .collect();
+
+        assert!(
+            offenders.is_empty(),
+            "fleet default prompt config contains {} double-width glyph(s) that \
+             will misalign the cursor — replace with single-width SignalMode::Glyph \
+             forms: {:?}",
+            offenders.len(),
+            offenders
+                .iter()
+                .map(|(c, w)| format!("U+{:04X} (width {w})", *c as u32))
+                .collect::<Vec<_>>(),
+        );
     }
 
     #[test]
