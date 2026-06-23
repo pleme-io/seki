@@ -18,5 +18,11 @@ serde_yaml.workspace = true
 # resolves every accent from a Borealis token, never a hand-authored hex.
 ishou-tokens.workspace = true
 
+[dev-dependencies]
+# Grid-alignment forcing function: the prescribed default prompt must
+# contain no double-width (emoji) glyph. See the `prescribed_default_*`
+# tests in lib.rs.
+unicode-width.workspace = true
+
 [lints]
 workspace = true

@@ -694,6 +694,7 @@ dependencies = [
  "serde",
  "serde_yaml",
  "shikumi",
+ "unicode-width",
 ]
 
 [[package]]
