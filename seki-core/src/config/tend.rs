@@ -31,6 +31,7 @@
 //! word at the end of each line. Migrating to JSON once tend grows
 //! a `--format=json` flag is a one-line swap inside the module.
 
+use crate::palette::NordPalette;
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
 
@@ -65,12 +66,13 @@ pub struct TendConfig {
 
 impl Default for TendConfig {
     fn default() -> Self {
+        let nord = NordPalette::pleme();
         Self {
             enabled: true,
             format: "[$status]($style)".to_owned(),
-            clean_style: StyleSpec::new("bold #A3BE8C"),
-            light_style: StyleSpec::new("bold #EBCB8B"),
-            heavy_style: StyleSpec::new("bold #BF616A"),
+            clean_style: StyleSpec::new(NordPalette::bold(&nord.aurora_green)),
+            light_style: StyleSpec::new(NordPalette::bold(&nord.aurora_yellow)),
+            heavy_style: StyleSpec::new(NordPalette::bold(&nord.aurora_red)),
             heavy_threshold: 6,
             command: "tend".to_owned(),
             command_timeout_ms: 500,

@@ -21,6 +21,7 @@
 //! `TieredConfig::prescribed_default()` reads from here.
 
 use seki_core::SekiConfig;
+use seki_core::palette::NordPalette;
 
 use crate::blzsh_parity::blzsh_parity_config;
 
@@ -94,7 +95,9 @@ pub fn companion_config() -> SekiConfig {
     c.rust.symbol = "🦀 ".to_owned();
     c.rust.prefix = String::new();
     c.rust.suffix = " ".to_owned();
-    c.rust.style = seki_core::style::StyleSpec::new("bold #BF616A"); // nord aurora red
+    // nord aurora red — sourced from the ishou Nord token, not hand-authored.
+    c.rust.style =
+        seki_core::style::StyleSpec::new(NordPalette::bold(&NordPalette::pleme().aurora_red));
     if let Some(pos) = c.prompt_order.iter().position(|s| s == "character") {
         c.prompt_order.insert(pos, "rust".to_owned());
     }
@@ -117,7 +120,10 @@ mod tests {
         assert!(c.cmd_duration.format.contains("⏱"), "duration → ⏱");
         assert!(c.hostname.format.contains("🖥"), "host → 🖥");
         let tear = ishou_tokens::FleetStateVar::TearSessionName.name();
-        assert!(c.env_var.entries[tear].format.contains("🌊"), "session → 🌊");
+        assert!(
+            c.env_var.entries[tear].format.contains("🌊"),
+            "session → 🌊"
+        );
     }
 
     #[test]
@@ -130,7 +136,10 @@ mod tests {
         assert!(c.directory.enabled);
         assert!(c.git_branch.enabled);
         assert!(c.cmd_duration.enabled);
-        assert_eq!(c.prompt_order.first().map(String::as_str), Some("nix_shell"));
+        assert_eq!(
+            c.prompt_order.first().map(String::as_str),
+            Some("nix_shell")
+        );
         assert_eq!(c.prompt_order.last().map(String::as_str), Some("character"));
     }
 

@@ -23,6 +23,7 @@ pub mod error;
 pub mod format;
 pub mod init;
 pub mod module;
+pub mod palette;
 pub mod render;
 pub mod segment;
 pub mod style;

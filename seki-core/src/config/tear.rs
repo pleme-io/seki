@@ -17,6 +17,7 @@
 //! Env-var read only (`TEAR_SESSION_NAME` + `TEAR_PANE_ID`). Bypasses
 //! `scan_timeout_ms` per the doc's env-var exemption.
 
+use crate::palette::NordPalette;
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
 
@@ -40,6 +41,7 @@ pub struct TearConfig {
 
 impl Default for TearConfig {
     fn default() -> Self {
+        let nord = NordPalette::pleme();
         Self {
             // Default-OFF per docs/PLEME-IO-SEGMENTS.md M3 Tier 2:
             // every Tier 2 segment except shikumi_config opts out by
@@ -55,7 +57,7 @@ impl Default for TearConfig {
             // by `default_format_is_not_path_like`.
             format: "[⧉ $session] [pane $pane]($style)".to_owned(),
             pane_id_len: 6,
-            style: StyleSpec::new("bold #88C0D0"),
+            style: StyleSpec::new(NordPalette::bold(&nord.frost_cyan)),
         }
     }
 }

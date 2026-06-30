@@ -23,6 +23,7 @@
 //! ([`Self::cache_ttl_secs`]) prevents repeated invocations across
 //! renders in one shell session.
 
+use crate::palette::NordPalette;
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
 
@@ -53,13 +54,14 @@ pub struct KasouVmConfig {
 
 impl Default for KasouVmConfig {
     fn default() -> Self {
+        let nord = NordPalette::pleme();
         Self {
             // Tier 5 default: disabled (probe cost > 0; operator
             // opts in via SEKI_TIER or per-segment toggle).
             enabled: false,
             format: "[$status]($style)".to_owned(),
-            active_style: StyleSpec::new("bold #88C0D0"),
-            idle_style: StyleSpec::new("dimmed #D8DEE9"),
+            active_style: StyleSpec::new(NordPalette::bold(&nord.frost_cyan)),
+            idle_style: StyleSpec::new(NordPalette::dimmed(&nord.snow_dim)),
             command: "kasou".to_owned(),
             command_timeout_ms: 500,
             cache_ttl_secs: 60,

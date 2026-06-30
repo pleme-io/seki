@@ -24,6 +24,7 @@
 //! prevents repeated invocations within a shell session; stale
 //! renders annotate with `(stale)`.
 
+use crate::palette::NordPalette;
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
 
@@ -59,11 +60,12 @@ pub struct ShikumiConfigConfig {
 
 impl Default for ShikumiConfigConfig {
     fn default() -> Self {
+        let nord = NordPalette::pleme();
         Self {
             enabled: true,
             apps: super::shikumi_tier::default_apps(),
             format: "[$app:$tier]($style)".to_owned(),
-            style: StyleSpec::new("bold #A3BE8C"),
+            style: StyleSpec::new(NordPalette::bold(&nord.aurora_green)),
             separator: " ".to_owned(),
             command_timeout_ms: 200,
             cache_ttl_secs: 60,

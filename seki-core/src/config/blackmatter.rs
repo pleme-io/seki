@@ -32,6 +32,7 @@
 //! `read_dir` over `$XDG_CONFIG_HOME`. Both bounded well under any
 //! `scan_timeout_ms`.
 
+use crate::palette::NordPalette;
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -60,13 +61,14 @@ pub struct BlackmatterConfig {
 
 impl Default for BlackmatterConfig {
     fn default() -> Self {
+        let nord = NordPalette::pleme();
         Self {
             // Tier 4 default = operator opt-in. Blackmatter is the
             // load-bearing pleme-io HM aggregator but the count is
             // an "fleet health" cue, not a critical-path signal.
             enabled: false,
             format: "[bm: $count]($style)".to_owned(),
-            style: StyleSpec::new("bold #A3BE8C"),
+            style: StyleSpec::new(NordPalette::bold(&nord.aurora_green)),
             manifest_path: ".config/blackmatter/enabled-components.json".to_owned(),
             known_components: default_known_components(),
         }
@@ -164,10 +166,7 @@ mod tests {
 
     #[test]
     fn default_uses_nord_aurora_green() {
-        assert_eq!(
-            BlackmatterConfig::default().style.as_str(),
-            "bold #A3BE8C"
-        );
+        assert_eq!(BlackmatterConfig::default().style.as_str(), "bold #A3BE8C");
     }
 
     #[test]

@@ -25,6 +25,7 @@
 //! ([`Self::cache_ttl_secs`]) prevents repeated probes across renders
 //! in one shell session.
 
+use crate::palette::NordPalette;
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
 
@@ -65,13 +66,14 @@ pub struct EngenhoConfig {
 
 impl Default for EngenhoConfig {
     fn default() -> Self {
+        let nord = NordPalette::pleme();
         Self {
             // Tier 5 default: disabled (probe cost > 0; operator
             // opts in via SEKI_TIER or per-segment toggle).
             enabled: false,
             format: "[$status]($style)".to_owned(),
-            ready_style: StyleSpec::new("bold #A3BE8C"),
-            degraded_style: StyleSpec::new("bold #BF616A"),
+            ready_style: StyleSpec::new(NordPalette::bold(&nord.aurora_green)),
+            degraded_style: StyleSpec::new(NordPalette::bold(&nord.aurora_red)),
             addr: "127.0.0.1:6443".to_owned(),
             path: "/readyz".to_owned(),
             addr_env_var: "ENGENHO_API_ADDR".to_owned(),

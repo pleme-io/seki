@@ -14,6 +14,7 @@
 //! with a hard `command_timeout_ms` bound. Gracefully absent on any
 //! failure.
 
+use crate::palette::NordPalette;
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
 
@@ -31,11 +32,12 @@ pub struct ShigotoConfig {
 
 impl Default for ShigotoConfig {
     fn default() -> Self {
+        let nord = NordPalette::pleme();
         Self {
             enabled: false,
             format: "[$status]($style)".to_owned(),
-            active_style: StyleSpec::new("bold #D08770"),
-            idle_style: StyleSpec::new("bold #A3BE8C"),
+            active_style: StyleSpec::new(NordPalette::bold(&nord.aurora_orange)),
+            idle_style: StyleSpec::new(NordPalette::bold(&nord.aurora_green)),
             addr: "$env".to_owned(),
             snapshot_path: "/v1/snapshot".to_owned(),
             command_timeout_ms: 200,
