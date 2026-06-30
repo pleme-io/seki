@@ -23,6 +23,7 @@
 //! parse failure). The same thread + `recv_timeout` pattern from
 //! `tend`/`engenho` enforces the wall budget.
 
+use crate::palette::NordPalette;
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
 
@@ -62,14 +63,15 @@ pub struct ArnesCacheConfig {
 
 impl Default for ArnesCacheConfig {
     fn default() -> Self {
+        let nord = NordPalette::pleme();
         Self {
             // Tier 5 default: disabled (probe cost > 0; operator
             // opts in via SEKI_TIER or per-segment toggle).
             enabled: false,
             format: "[$status]($style)".to_owned(),
-            warm_style: StyleSpec::new("bold #A3BE8C"),
-            lukewarm_style: StyleSpec::new("bold #EBCB8B"),
-            cold_style: StyleSpec::new("bold #BF616A"),
+            warm_style: StyleSpec::new(NordPalette::bold(&nord.aurora_green)),
+            lukewarm_style: StyleSpec::new(NordPalette::bold(&nord.aurora_yellow)),
+            cold_style: StyleSpec::new(NordPalette::bold(&nord.aurora_red)),
             warm_threshold: 0.80,
             cold_threshold: 0.50,
             // Relative to $HOME — the module resolves the full path

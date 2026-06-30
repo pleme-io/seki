@@ -23,6 +23,7 @@
 //! repeated probes within a shell session; stale renders annotate
 //! with `(stale)`. Failures render nothing (graceful absence).
 
+use crate::palette::NordPalette;
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
 
@@ -57,13 +58,14 @@ pub struct VigyConfig {
 
 impl Default for VigyConfig {
     fn default() -> Self {
+        let nord = NordPalette::pleme();
         Self {
             enabled: false,
             host: "127.0.0.1".to_owned(),
             port: 38_821,
             path: "/reconcilers".to_owned(),
             format: "[vigy: $count @ $hz Hz]($style)".to_owned(),
-            style: StyleSpec::new("bold #81A1C1"),
+            style: StyleSpec::new(NordPalette::bold(&nord.frost_steel)),
             probe_timeout_ms: 100,
             cache_ttl_secs: 30,
         }

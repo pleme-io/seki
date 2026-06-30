@@ -13,6 +13,7 @@
 //! `command_timeout_ms` bound. Gracefully absent when tatara is
 //! missing / errored / timed out.
 
+use crate::palette::NordPalette;
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
 
@@ -28,10 +29,11 @@ pub struct TataraWorkloadConfig {
 
 impl Default for TataraWorkloadConfig {
     fn default() -> Self {
+        let nord = NordPalette::pleme();
         Self {
             enabled: false,
             format: "[$status]($style)".to_owned(),
-            style: StyleSpec::new("bold #88C0D0"),
+            style: StyleSpec::new(NordPalette::bold(&nord.frost_cyan)),
             command: "tatara".to_owned(),
             command_timeout_ms: 300,
             cache_ttl_secs: 30,

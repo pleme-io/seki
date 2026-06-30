@@ -18,6 +18,7 @@
 //! Filesystem read only (`~/.config/cofre/cofre.yaml`). Bypasses
 //! `scan_timeout_ms`.
 
+use crate::palette::NordPalette;
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
 
@@ -41,11 +42,12 @@ pub struct CofreTierConfig {
 
 impl Default for CofreTierConfig {
     fn default() -> Self {
+        let nord = NordPalette::pleme();
         Self {
             enabled: false,
             manifest_path: ".config/cofre/cofre.yaml".to_owned(),
             format: "[cofre: $backend]($style)".to_owned(),
-            style: StyleSpec::new("bold #EBCB8B"),
+            style: StyleSpec::new(NordPalette::bold(&nord.aurora_yellow)),
         }
     }
 }

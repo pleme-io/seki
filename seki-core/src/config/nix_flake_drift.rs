@@ -14,6 +14,7 @@
 //! Hard-bounded by `command_timeout_ms`. Gracefully absent outside
 //! a flake dir.
 
+use crate::palette::NordPalette;
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
 
@@ -32,11 +33,12 @@ pub struct NixFlakeDriftConfig {
 
 impl Default for NixFlakeDriftConfig {
     fn default() -> Self {
+        let nord = NordPalette::pleme();
         Self {
             enabled: false,
             format: "[$status]($style)".to_owned(),
-            drift_style: StyleSpec::new("bold #BF616A"),
-            fresh_style: StyleSpec::new("dim #D8DEE9"),
+            drift_style: StyleSpec::new(NordPalette::bold(&nord.aurora_red)),
+            fresh_style: StyleSpec::new(NordPalette::dim(&nord.snow_dim)),
             nix_command: "nix".to_owned(),
             git_command: "git".to_owned(),
             command_timeout_ms: 800,

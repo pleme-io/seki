@@ -21,6 +21,7 @@
 //! `scan_timeout_ms`. The read is cheap (one stat + one parse); we
 //! cache the parsed shape across renders so re-parsing is amortised.
 
+use crate::palette::NordPalette;
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
 
@@ -45,11 +46,12 @@ pub struct FleetNodeConfig {
 
 impl Default for FleetNodeConfig {
     fn default() -> Self {
+        let nord = NordPalette::pleme();
         Self {
             enabled: false,
             manifest_path: ".config/kindling/node.yaml".to_owned(),
             format: "[$node/$cluster]($style)".to_owned(),
-            style: StyleSpec::new("dimmed #D8DEE9"),
+            style: StyleSpec::new(NordPalette::dimmed(&nord.snow_dim)),
         }
     }
 }

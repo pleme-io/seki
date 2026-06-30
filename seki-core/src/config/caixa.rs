@@ -20,6 +20,7 @@
 //! first `caixa.lisp` it finds, the filesystem root, or the parent
 //! of a `.git` directory (whichever comes first).
 
+use crate::palette::NordPalette;
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
 
@@ -44,11 +45,12 @@ pub struct CaixaConfig {
 
 impl Default for CaixaConfig {
     fn default() -> Self {
+        let nord = NordPalette::pleme();
         Self {
             enabled: true,
             format: "[$kind]($style)".to_owned(),
-            style: StyleSpec::new("bold #88C0D0"),
-            error_style: StyleSpec::new("bold #BF616A"),
+            style: StyleSpec::new(NordPalette::bold(&nord.frost_cyan)),
+            error_style: StyleSpec::new(NordPalette::bold(&nord.aurora_red)),
         }
     }
 }

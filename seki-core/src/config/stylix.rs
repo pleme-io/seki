@@ -27,6 +27,7 @@
 //! Filesystem read + env-var lookup only — no subprocess. Both
 //! checks are well under any reasonable `scan_timeout_ms`.
 
+use crate::palette::NordPalette;
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -54,13 +55,14 @@ pub struct StylixConfig {
 
 impl Default for StylixConfig {
     fn default() -> Self {
+        let nord = NordPalette::pleme();
         Self {
             // Tier 4 default = operator opt-in. Stylix is optional
             // on the fleet — flipping enabled=true is a one-line
             // operator decision in their seki.yaml.
             enabled: false,
             format: "[stylix: $name]($style)".to_owned(),
-            style: StyleSpec::new("bold #88C0D0"),
+            style: StyleSpec::new(NordPalette::bold(&nord.frost_cyan)),
             config_path: ".config/stylix.json".to_owned(),
             env_var: "STYLIX_BASE16_SCHEME".to_owned(),
         }
@@ -111,7 +113,10 @@ mod tests {
 
     fn tmp_dir(name: &str) -> PathBuf {
         let mut p = std::env::temp_dir();
-        p.push(format!("seki-stylix-cfg-test-{name}-{}", std::process::id()));
+        p.push(format!(
+            "seki-stylix-cfg-test-{name}-{}",
+            std::process::id()
+        ));
         let _ = fs::remove_dir_all(&p);
         fs::create_dir_all(&p).unwrap();
         p

@@ -13,6 +13,7 @@
 //!
 //! Filesystem read only. Gracefully absent on any failure.
 
+use crate::palette::NordPalette;
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
 
@@ -30,12 +31,13 @@ pub struct KindlingPostureConfig {
 
 impl Default for KindlingPostureConfig {
     fn default() -> Self {
+        let nord = NordPalette::pleme();
         Self {
             enabled: false,
             format: "[$status]($style)".to_owned(),
-            ready_style: StyleSpec::new("bold #A3BE8C"),
-            provisioned_style: StyleSpec::new("bold #EBCB8B"),
-            other_style: StyleSpec::new("bold #D08770"),
+            ready_style: StyleSpec::new(NordPalette::bold(&nord.aurora_green)),
+            provisioned_style: StyleSpec::new(NordPalette::bold(&nord.aurora_yellow)),
+            other_style: StyleSpec::new(NordPalette::bold(&nord.aurora_orange)),
             posture_path: ".config/kindling/posture.json".to_owned(),
         }
     }

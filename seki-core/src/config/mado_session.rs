@@ -12,6 +12,7 @@
 //! Unix socket connect + minimal MCP query, hard-bounded by
 //! `command_timeout_ms`. Gracefully absent on any failure.
 
+use crate::palette::NordPalette;
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
 
@@ -29,10 +30,11 @@ pub struct MadoSessionConfig {
 
 impl Default for MadoSessionConfig {
     fn default() -> Self {
+        let nord = NordPalette::pleme();
         Self {
             enabled: false,
             format: "[$status]($style)".to_owned(),
-            style: StyleSpec::new("bold #81A1C1"),
+            style: StyleSpec::new(NordPalette::bold(&nord.frost_steel)),
             socket_path: "$env".to_owned(),
             command_timeout_ms: 200,
             cache_ttl_secs: 5,

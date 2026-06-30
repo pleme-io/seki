@@ -28,6 +28,7 @@
 //! prescription picks up the new theme on next launch; this segment
 //! is the operator's confirmation that the recompile took.
 
+use crate::palette::NordPalette;
 use crate::style::StyleSpec;
 use serde::{Deserialize, Serialize};
 
@@ -48,10 +49,11 @@ pub struct IshouThemeConfig {
 
 impl Default for IshouThemeConfig {
     fn default() -> Self {
+        let nord = NordPalette::pleme();
         Self {
             enabled: true,
             format: "[ishou: $theme]($style)".to_owned(),
-            style: StyleSpec::new("bold #D8DEE9"),
+            style: StyleSpec::new(NordPalette::bold(&nord.snow_dim)),
         }
     }
 }
