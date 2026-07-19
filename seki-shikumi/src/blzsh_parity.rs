@@ -132,7 +132,7 @@ pub fn blzsh_parity_config() -> SekiConfig {
         // [git_status]
         // format = '[$all_status$ahead_behind]($style) '
         // style  = "bold #EBCB8B"
-        // stashed = "$$"   ahead = "⇡${count}"   behind = "⇣${count}"
+        // stashed = "≡${count}"   ahead = "⇡${count}"   behind = "⇣${count}"
         // diverged = "⇕${ahead_count}⇣${behind_count}"
         // conflicted = "=" deleted = "✘" renamed = "»"
         // modified = "!"   staged = "+" untracked = "?"
@@ -149,17 +149,28 @@ pub fn blzsh_parity_config() -> SekiConfig {
         // composed onto the fleet glyph.
         //
         // The remaining status fields (modified=`!`, staged=`+`,
-        // conflicted=`=`, deleted=`✘`, stashed=`$$`) are deliberately
-        // NOT sourced from FleetSignals: their atlas glyphs (`✚` `●`
-        // `✘` `⚑`) DIVERGE from seki's blzsh-parity symbols, and
-        // re-pointing them would silently change the operator-visible
-        // blzsh prompt. They stay on the blzsh vocabulary; reconciling
-        // them is a FleetSignals-side decision, not a seki change.
+        // conflicted=`=`, deleted=`✘`) are deliberately NOT sourced
+        // from FleetSignals: their atlas glyphs (`✚` `●` `✘`) DIVERGE
+        // from seki's blzsh-parity symbols, and re-pointing them would
+        // silently change the operator-visible blzsh prompt. They stay
+        // on the blzsh vocabulary; reconciling them is a
+        // FleetSignals-side decision, not a seki change.
+        //
+        // `stashed` is the ONE exception: the legacy blzsh value this
+        // was "parity"-pinned to (`"$$"`) was never a real glyph choice
+        // — it is invalid starship format-string syntax (a bare `$`
+        // needs `\$` escaping; `$$` parses as neither) that fired a
+        // parse warning on every single prompt render in the ORIGINAL
+        // starship.toml too (fixed there 2026-07-19,
+        // blackmatter-shell@eb93c0c). There was no intentional
+        // vocabulary here to preserve — just an unnoticed bug this
+        // "parity" pin faithfully copied. Fixed to the SAME glyph
+        // starship.toml now uses, so both configs render identically.
         git_status: GitStatusConfig {
             enabled: true,
             format: "[$all_status$ahead_behind]($style) ".to_owned(),
             style: StyleSpec::new("bold #EBCB8B"),
-            stashed: "$$".to_owned(),
+            stashed: "≡${count}".to_owned(),
             // ⇡ from FleetSignals.git_ahead (glyph) + ${count}.
             ahead: format!("{}${{count}}", git_glyph(|s| &s.git_ahead)),
             // ⇣ from FleetSignals.git_behind (glyph) + ${count}.
@@ -516,7 +527,12 @@ mod tests {
         // intentional divergence is documented + regression-guarded.
         assert_eq!(c.git_status.modified, "!"); // atlas git_dirty = ✚
         assert_eq!(c.git_status.staged, "+"); //   atlas git_staged = ●
-        assert_eq!(c.git_status.stashed, "$$"); //  atlas git_stashed = ⚑
+
+        // `stashed` was NOT an intentional divergence — `"$$"` is invalid
+        // starship format-string syntax (the same bug fixed in
+        // starship.toml, blackmatter-shell@eb93c0c). Pinned to the fixed
+        // glyph, matching starship.toml exactly.
+        assert_eq!(c.git_status.stashed, "≡${count}");
     }
 
     #[test]
