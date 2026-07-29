@@ -10,8 +10,8 @@
 //!
 //! Short and sweet by construction: every segment is *conditional*, so
 //! a plain local dir is just `📁 ~/dir ❄`, while a nix-shell + tear
-//! session + dirty repo blooms into a full companion
-//! `❄ 🌊 sess 📁 …/nix 🌿 main 🟡 ❄`. Hostname is **ssh-only** (you
+//! pane + dirty repo blooms into a full companion
+//! `❄ 🔖 a1b2c3 📁 …/nix 🌿 main 🟡 ❄`. Hostname is **ssh-only** (you
 //! know your own machine; it appears the moment you're remote — crucial
 //! fleet context, zero local cost).
 //!
@@ -23,14 +23,17 @@
 use seki_core::SekiConfig;
 use seki_core::palette::NordPalette;
 
-use crate::blzsh_parity::blzsh_parity_config;
+use crate::fleet_base::fleet_base_config;
 
 /// The companion prescribed default. Same Nord-frost palette + segment
 /// structure as blzsh-parity; symbols become emojis and the warm
 /// accents add the Brazilian touch.
 #[must_use]
 pub fn companion_config() -> SekiConfig {
-    let mut c = blzsh_parity_config();
+    // `fleet_base_config()`, not the raw parity mirror: the fleet's own
+    // default posture (today: session name off) is inherited, never
+    // restated here. Themes re-paint; they don't re-decide.
+    let mut c = fleet_base_config();
 
     // nix_shell — keep the ❄ (the nix glyph + fleet signature, frost cyan).
     // The cold anchor; unchanged from blzsh.
@@ -65,6 +68,10 @@ pub fn companion_config() -> SekiConfig {
     c.hostname.format = "🖥 [$hostname](dimmed $style) ".to_owned();
 
     // env_var — 📦 the tend workspace, 🌊 the praça session tide.
+    // The session tide is themed but DISABLED by default (see
+    // `fleet_base`): re-skinning a segment is this file's job, deciding
+    // whether the fleet renders it is not. An operator who flips it back
+    // on gets the 🌊, not the parity `~`.
     if let Some(ws) = c.env_var.entries.get_mut("WORKSPACE") {
         ws.format = "📦 [$env_value]($style) ".to_owned();
     }
