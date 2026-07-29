@@ -8,8 +8,9 @@
 //! - `bare()` → [`seki_core::SekiConfig::bare`] (zero opinions)
 //! - `discovered()` → default-of-`bare` overlaid with auto-detect
 //!   (M1: detect-helpers TBD; today returns `bare`)
-//! - `prescribed_default()` → [`blzsh_parity::blzsh_parity_config`]
-//!   (the M3 deliverable — exact match to blzsh's starship.toml)
+//! - `prescribed_default()` → [`fleet_base::fleet_base_config`] (the M3
+//!   deliverable — blzsh's starship.toml, plus the fleet's own default
+//!   posture) with the single-width rust segment spliced in
 //! - `extend(base)` → full replacement (default trait impl).
 
 use seki_core::SekiConfig;
@@ -18,6 +19,7 @@ use shikumi::TieredConfig;
 pub mod blzsh_parity;
 pub mod companion_config;
 pub mod discovered;
+pub mod fleet_base;
 pub mod vellum;
 pub mod vellum_config;
 
@@ -75,7 +77,12 @@ impl TieredConfig for TieredSekiConfig {
         // is the forcing function that keeps any width-2 glyph out of the
         // default. (`blzsh_parity_config` stays the pure parity reference;
         // `companion_config` / `vellum_config` remain opt-in themes.)
-        let mut cfg = blzsh_parity::blzsh_parity_config();
+        //
+        // The base is `fleet_base_config()`, NOT `blzsh_parity_config()`:
+        // the fleet's own deviations from the pinned parity mirror (today:
+        // the session-name segment is off) live in exactly one place, so
+        // this tier and the themes can't drift apart. See `fleet_base`.
+        let mut cfg = fleet_base::fleet_base_config();
 
         const SIG: ishou_tokens::SekiSignals = ishou_tokens::SekiSignals::prescribed();
         let mut rust_symbol = SIG.lang_rust.render(ishou_tokens::SignalMode::Glyph).to_owned();
@@ -111,6 +118,26 @@ mod tests {
         assert!(c.prompt_order.is_empty());
         assert!(!c.directory.enabled);
         assert!(!c.git_branch.enabled);
+    }
+
+    #[test]
+    fn every_fleet_tier_hides_the_session_name() {
+        // The operator names the session and the window already shows it;
+        // the prompt restating it on every line is width spent on a known
+        // fact. This asserts it across EVERY tier an operator can land on
+        // — not just the base — so a future theme can't quietly re-enable
+        // it by forgetting to derive from `fleet_base`.
+        let name = ishou_tokens::FleetStateVar::TearSessionName.name();
+        for (tier, cfg) in [
+            ("prescribed_default", TieredSekiConfig::prescribed_default().0),
+            ("companion", companion_config::companion_config()),
+            ("vellum", vellum_config::vellum_config()),
+        ] {
+            assert!(
+                !cfg.env_var.entries[name].enabled,
+                "{tier} renders the tear session name; the fleet default is off",
+            );
+        }
     }
 
     #[test]

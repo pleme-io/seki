@@ -15,7 +15,7 @@
 use seki_core::SekiConfig;
 use seki_core::style::StyleSpec;
 
-use crate::blzsh_parity::blzsh_parity_config;
+use crate::fleet_base::fleet_base_config;
 use crate::vellum::PromptPalette;
 
 /// The Vellum prescribed default. Same shape as blzsh-parity; every
@@ -23,7 +23,9 @@ use crate::vellum::PromptPalette;
 #[must_use]
 pub fn vellum_config() -> SekiConfig {
     let p = PromptPalette::vellum();
-    let mut c = blzsh_parity_config();
+    // `fleet_base_config()`, not the raw parity mirror — this file
+    // re-points colour, never fleet posture. See `fleet_base`.
+    let mut c = fleet_base_config();
 
     // [character] — ❄ glyphs, Vellum accents (spec §7):
     // success=ice_cyan, error=aurora_red, vicmd=aurora_green,
