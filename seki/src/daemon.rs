@@ -150,6 +150,49 @@ fn generation_of(generations: &Generations, root: &Path) -> u64 {
     *generations.lock().unwrap().get(root).unwrap_or(&0)
 }
 
+/// Bump every watched root's generation, invalidating every cached status.
+///
+/// The same move `classify_events` makes for a rescan/overflow flag, applied
+/// to the one other situation that can drop events without announcing it: a
+/// watcher rebuild. See the call site in [`ensure_watched`].
+fn invalidate_all(watched: &Watched, generations: &Generations) {
+    let roots = watched.lock().unwrap().roots();
+    let mut g = generations.lock().unwrap();
+    for root in roots {
+        *g.entry(root).or_insert(0) += 1;
+    }
+}
+
+/// Paths whose changes can never alter `git status --porcelain` output, and
+/// so can be dropped before they cost a recompute.
+///
+/// ONLY `.git/objects` and `.git/lfs` qualify, and the bar for adding to this
+/// list is that the exclusion be *output-preserving by construction*, not
+/// merely usually-harmless. Object writes cannot change status on their own —
+/// what changes it is the index or ref write that accompanies them, and both
+/// land outside `objects/`. A `git gc` or a fetch's packfile is pure noise.
+///
+/// Deliberately NOT here: `target/`, `node_modules/`, and friends. They are
+/// the actual event-storm sources, but excluding them is only safe when git
+/// genuinely ignores them in that repo — a repo that tracks a directory named
+/// `target` would silently stop updating. Getting that right needs a per-root
+/// `git check-ignore` verification; until that exists, a missed event is a
+/// silently stale prompt, which is worse than the wasted work it saves.
+fn is_output_irrelevant(path: &Path, root: &Path) -> bool {
+    let Ok(rel) = path.strip_prefix(root) else {
+        return false;
+    };
+    let mut comps = rel.components();
+    if comps.next().map(|c| c.as_os_str()) != Some(std::ffi::OsStr::new(".git")) {
+        return false;
+    }
+    // Strictly BELOW .git/objects — never the directory node itself.
+    matches!(
+        comps.next().map(|c| c.as_os_str().to_string_lossy().into_owned()).as_deref(),
+        Some("objects" | "lfs")
+    ) && comps.next().is_some()
+}
+
 /// Run the daemon. Binds the socket, watches repos on demand, keeps their
 /// status hot via FS events, serves generation-validated reads. Blocks until
 /// killed. Returns immediately (Ok) if another daemon already owns the socket.
@@ -246,7 +289,7 @@ fn classify_events(events: &[EventFacts], roots: &[PathBuf]) -> HashSet<PathBuf>
         }
         for path in &ev.paths {
             for root in roots {
-                if path.starts_with(root) {
+                if path.starts_with(root) && !is_output_irrelevant(path, root) {
                     affected.insert(root.clone());
                 }
             }
@@ -427,6 +470,24 @@ fn ensure_watched(
         cache.lock().unwrap().remove(&old);
         generations.lock().unwrap().remove(&old);
     }
+    // ★ Every watch()/unwatch() BLANKS the event stream for every root.
+    //
+    // notify's FSEvents backend implements both as stop() → mutate the path
+    // array → run(), and run() recreates the stream with `since_when`, which
+    // is fixed at `kFSEventStreamEventIdSinceNow` when the watcher is built
+    // and never advanced (notify 8.2.0 `src/fsevent.rs:299,440`). So the
+    // rebuild resumes from "now" and anything that changed during the gap is
+    // gone — delivered to nobody, with NO `need_rescan` flag to announce it.
+    // Nothing in the event path can detect this; the cache would simply keep
+    // serving a value whose invalidating event was never delivered.
+    //
+    // The window is small but the failure is silent and sticky: a repo whose
+    // only change landed in that gap stays wrong until something else touches
+    // it. So treat a stream rebuild exactly like the rescan/overflow case —
+    // bump EVERY watched root, forcing the next query on each to recompute
+    // live. One recompute per watched repo, only when the watch set actually
+    // changes, in exchange for removing the silent-miss class entirely.
+    invalidate_all(watched, generations);
     generations
         .lock()
         .unwrap()
@@ -602,6 +663,71 @@ mod tests {
             "the untouched root is displaced, not the active one"
         );
         assert!(w.contains(&root("/work")));
+    }
+
+    #[test]
+    fn a_watcher_rebuild_invalidates_every_cached_root() {
+        // notify's FSEvents backend rebuilds its stream on every
+        // watch()/unwatch() and resumes from "now", so changes during the gap
+        // are delivered to NOBODY and no rescan flag is raised. The only
+        // defence is to treat a rebuild as a rescan. If this ever regresses,
+        // the symptom is a prompt that is silently wrong until something else
+        // touches the repo — so assert the generations actually move.
+        let watched: Watched = Arc::new(Mutex::new(WatchSet::new(8)));
+        let generations: Generations = Arc::new(Mutex::new(HashMap::new()));
+        for r in ["/a", "/b", "/c"] {
+            watched.lock().unwrap().insert(root(r));
+            generations.lock().unwrap().insert(root(r), 5);
+        }
+        invalidate_all(&watched, &generations);
+        for r in ["/a", "/b", "/c"] {
+            assert_eq!(
+                generation_of(&generations, &root(r)),
+                6,
+                "{r} must be invalidated by a stream rebuild, not just the evicted root"
+            );
+        }
+    }
+
+    #[test]
+    fn git_object_churn_is_dropped_but_index_and_refs_are_not() {
+        let roots = [root("/repo")];
+        // A gc/fetch writing packfiles cannot change status output.
+        assert!(
+            classify_events(&[plain(&["/repo/.git/objects/pack/pack-abc.pack"])], &roots).is_empty(),
+            ".git/objects churn must not cost a recompute"
+        );
+        // Everything that CAN change the output must still get through.
+        for p in [
+            "/repo/.git/index",
+            "/repo/.git/HEAD",
+            "/repo/.git/refs/heads/main",
+            "/repo/.git/logs/refs/stash",
+            "/repo/src/main.rs",
+            "/repo/untracked-new-file",
+        ] {
+            assert!(
+                !classify_events(&[plain(&[p])], &roots).is_empty(),
+                "{p} changes git status output and MUST dirty the root"
+            );
+        }
+    }
+
+    #[test]
+    fn the_objects_directory_node_itself_is_not_excluded() {
+        // The exclusion is for paths strictly BELOW .git/objects. Excluding
+        // the node itself would be a different, unverified claim.
+        let roots = [root("/repo")];
+        assert!(!classify_events(&[plain(&["/repo/.git/objects"])], &roots).is_empty());
+    }
+
+    #[test]
+    fn a_target_dir_is_still_watched_because_excluding_it_is_not_yet_safe() {
+        // Pins the deliberate scope limit: target/ is the real storm source
+        // but excluding it without a per-root `git check-ignore` check would
+        // silently break any repo that tracks a directory of that name.
+        let roots = [root("/repo")];
+        assert!(!classify_events(&[plain(&["/repo/target/debug/x.o"])], &roots).is_empty());
     }
 
     #[test]
