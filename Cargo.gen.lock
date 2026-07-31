@@ -1,6 +1,13 @@
 {
-  "schema_version": 1,
-  "cargo_lock_sha256": "731709a7ceac11327cfe1b7a2944706ce2f4d619af148b6aeaaa47031917a508",
+  "schema_version": 2,
+  "cargo_lock_sha256": "cee71205f62573ca2da09c64a7ec4f78f5a288a9c03d7f6d88a5718bf95ce115",
+  "manifest_sha256": {
+    "Cargo.toml": "332f0bf04a02fbf3122c8d0a0a26e315e42e6645f9d7dc1a0ffed0d3d3c41e5a",
+    "seki-core/Cargo.toml": "a4940218bec06d602b08f498142e4deb3262ab6a93bc5f8413c1ae32d3f86c89",
+    "seki-modules/Cargo.toml": "b5661a0b19dd5db8cdd7683e877816f3e9148ddd0d884f25a514cc1cbdb7ffd8",
+    "seki-shikumi/Cargo.toml": "b42c09011ed9e5e1d67dac168a8d7551ef4c64c527bde249b20cb9af99a5e82a",
+    "seki/Cargo.toml": "76715667b22bd7a93d9dba99dc26e6c41b6c38270075629923c3e51c38a3b6aa"
+  },
   "target_resolves": {
     "base": {
       "anstream-1.0.0": {
@@ -514,7 +521,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "gen-macros-0.1.9-6d82c9d3885c781e923ec46330d05d7eca469a3b": {
+      "gen-macros-0.1.30-6b490da46e0bfdc2465ba34d92fd2854d6c2779d": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -553,11 +560,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "gen-platform-0.1.9-6d82c9d3885c781e923ec46330d05d7eca469a3b": {
+      "gen-platform-0.1.30-6b490da46e0bfdc2465ba34d92fd2854d6c2779d": {
         "runtime_dependencies": [
           {
             "name": "gen_macros",
-            "package_key": "gen-macros-0.1.9-6d82c9d3885c781e923ec46330d05d7eca469a3b",
+            "package_key": "gen-macros-0.1.30-6b490da46e0bfdc2465ba34d92fd2854d6c2779d",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -567,7 +574,7 @@
           },
           {
             "name": "gen_types",
-            "package_key": "gen-types-0.1.9-6d82c9d3885c781e923ec46330d05d7eca469a3b",
+            "package_key": "gen-types-0.1.30-6b490da46e0bfdc2465ba34d92fd2854d6c2779d",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -621,7 +628,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "gen-types-0.1.9-6d82c9d3885c781e923ec46330d05d7eca469a3b": {
+      "gen-types-0.1.30-6b490da46e0bfdc2465ba34d92fd2854d6c2779d": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -852,37 +859,6 @@
         "features": [
           "alloc",
           "std"
-        ]
-      },
-      "mio-1.2.0": {
-        "runtime_dependencies": [
-          {
-            "name": "libc",
-            "package_key": "libc-0.2.186",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": false,
-            "target": "cfg(any(unix, target_os = \"hermit\", target_os = \"wasi\"))",
-            "tree": "target"
-          },
-          {
-            "name": "log",
-            "package_key": "log-0.4.29",
-            "kind": "normal",
-            "features": [],
-            "uses_default_features": true,
-            "optional": true,
-            "target": null,
-            "tree": "target"
-          }
-        ],
-        "build_dependencies": [],
-        "features": [
-          "default",
-          "log",
-          "os-ext",
-          "os-poll"
         ]
       },
       "notify-types-2.1.0": {
@@ -1224,7 +1200,7 @@
           },
           {
             "name": "shikumi",
-            "package_key": "shikumi-0.1.1-452827133c40e4c3ae00b3f1d2907d9484785be1",
+            "package_key": "shikumi-0.1.452-56adc8828ccb5f4f66258ca66ba402b92ae01dbb",
             "kind": "normal",
             "features": [
               "cli"
@@ -1430,7 +1406,7 @@
           },
           {
             "name": "shikumi",
-            "package_key": "shikumi-0.1.1-452827133c40e4c3ae00b3f1d2907d9484785be1",
+            "package_key": "shikumi-0.1.452-56adc8828ccb5f4f66258ca66ba402b92ae01dbb",
             "kind": "normal",
             "features": [
               "cli"
@@ -1656,7 +1632,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "shikumi-0.1.1-452827133c40e4c3ae00b3f1d2907d9484785be1": {
+      "shikumi-0.1.452-56adc8828ccb5f4f66258ca66ba402b92ae01dbb": {
         "runtime_dependencies": [
           {
             "name": "arc_swap",
@@ -1706,7 +1682,7 @@
           },
           {
             "name": "gen_platform",
-            "package_key": "gen-platform-0.1.9-6d82c9d3885c781e923ec46330d05d7eca469a3b",
+            "package_key": "gen-platform-0.1.30-6b490da46e0bfdc2465ba34d92fd2854d6c2779d",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1716,7 +1692,7 @@
           },
           {
             "name": "gen_types",
-            "package_key": "gen-types-0.1.9-6d82c9d3885c781e923ec46330d05d7eca469a3b",
+            "package_key": "gen-types-0.1.30-6b490da46e0bfdc2465ba34d92fd2854d6c2779d",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1739,7 +1715,7 @@
             "package_key": "notify-8.2.0",
             "kind": "normal",
             "features": [
-              "macos_kqueue"
+              "macos_fsevent"
             ],
             "uses_default_features": false,
             "optional": false,
@@ -2375,58 +2351,6 @@
               "fallback"
             ]
           },
-          "kqueue-1.1.1": {
-            "runtime_dependencies": [
-              {
-                "name": "kqueue_sys",
-                "package_key": "kqueue-sys-1.1.2",
-                "kind": "normal",
-                "features": [],
-                "uses_default_features": true,
-                "optional": false,
-                "target": null,
-                "tree": "target"
-              },
-              {
-                "name": "libc",
-                "package_key": "libc-0.2.186",
-                "kind": "normal",
-                "features": [],
-                "uses_default_features": true,
-                "optional": false,
-                "target": null,
-                "tree": "target"
-              }
-            ],
-            "build_dependencies": [],
-            "features": []
-          },
-          "kqueue-sys-1.1.2": {
-            "runtime_dependencies": [
-              {
-                "name": "bitflags",
-                "package_key": "bitflags-2.11.1",
-                "kind": "normal",
-                "features": [],
-                "uses_default_features": false,
-                "optional": false,
-                "target": null,
-                "tree": "target"
-              },
-              {
-                "name": "libc",
-                "package_key": "libc-0.2.186",
-                "kind": "normal",
-                "features": [],
-                "uses_default_features": true,
-                "optional": false,
-                "target": null,
-                "tree": "target"
-              }
-            ],
-            "build_dependencies": [],
-            "features": []
-          },
           "notify-8.2.0": {
             "runtime_dependencies": [
               {
@@ -2442,26 +2366,6 @@
               {
                 "name": "fsevent_sys",
                 "package_key": "fsevent-sys-4.1.0",
-                "kind": "normal",
-                "features": [],
-                "uses_default_features": true,
-                "optional": true,
-                "target": "cfg(target_os = \"macos\")",
-                "tree": "target"
-              },
-              {
-                "name": "kqueue",
-                "package_key": "kqueue-1.1.1",
-                "kind": "normal",
-                "features": [],
-                "uses_default_features": true,
-                "optional": false,
-                "target": "cfg(any(target_os = \"freebsd\", target_os = \"openbsd\", target_os = \"netbsd\", target_os = \"dragonflybsd\", target_os = \"ios\"))",
-                "tree": "target"
-              },
-              {
-                "name": "kqueue",
-                "package_key": "kqueue-1.1.1",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -2490,42 +2394,6 @@
                 "tree": "target"
               },
               {
-                "name": "mio",
-                "package_key": "mio-1.2.0",
-                "kind": "normal",
-                "features": [
-                  "os-ext"
-                ],
-                "uses_default_features": true,
-                "optional": false,
-                "target": "cfg(any(target_os = \"freebsd\", target_os = \"openbsd\", target_os = \"netbsd\", target_os = \"dragonflybsd\", target_os = \"ios\"))",
-                "tree": "target"
-              },
-              {
-                "name": "mio",
-                "package_key": "mio-1.2.0",
-                "kind": "normal",
-                "features": [
-                  "os-ext"
-                ],
-                "uses_default_features": true,
-                "optional": false,
-                "target": "cfg(any(target_os = \"linux\", target_os = \"android\"))",
-                "tree": "target"
-              },
-              {
-                "name": "mio",
-                "package_key": "mio-1.2.0",
-                "kind": "normal",
-                "features": [
-                  "os-ext"
-                ],
-                "uses_default_features": true,
-                "optional": true,
-                "target": "cfg(target_os = \"macos\")",
-                "tree": "target"
-              },
-              {
                 "name": "notify_types",
                 "package_key": "notify-types-2.1.0",
                 "kind": "normal",
@@ -2550,10 +2418,7 @@
             "features": [
               "default",
               "fsevent-sys",
-              "kqueue",
-              "macos_fsevent",
-              "macos_kqueue",
-              "mio"
+              "macos_fsevent"
             ]
           }
         }
@@ -2679,6 +2544,37 @@
             "build_dependencies": [],
             "features": []
           },
+          "mio-1.2.0": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.186",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(any(unix, target_os = \"hermit\", target_os = \"wasi\"))",
+                "tree": "target"
+              },
+              {
+                "name": "log",
+                "package_key": "log-0.4.29",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "default",
+              "log",
+              "os-ext",
+              "os-poll"
+            ]
+          },
           "notify-8.2.0": {
             "runtime_dependencies": [
               {
@@ -2736,18 +2632,6 @@
                 "tree": "target"
               },
               {
-                "name": "mio",
-                "package_key": "mio-1.2.0",
-                "kind": "normal",
-                "features": [
-                  "os-ext"
-                ],
-                "uses_default_features": true,
-                "optional": true,
-                "target": "cfg(target_os = \"macos\")",
-                "tree": "target"
-              },
-              {
                 "name": "notify_types",
                 "package_key": "notify-types-2.1.0",
                 "kind": "normal",
@@ -2772,10 +2656,7 @@
             "features": [
               "default",
               "fsevent-sys",
-              "kqueue",
-              "macos_fsevent",
-              "macos_kqueue",
-              "mio"
+              "macos_fsevent"
             ]
           }
         }
@@ -2901,6 +2782,37 @@
             "build_dependencies": [],
             "features": []
           },
+          "mio-1.2.0": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.186",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(any(unix, target_os = \"hermit\", target_os = \"wasi\"))",
+                "tree": "target"
+              },
+              {
+                "name": "log",
+                "package_key": "log-0.4.29",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "default",
+              "log",
+              "os-ext",
+              "os-poll"
+            ]
+          },
           "notify-8.2.0": {
             "runtime_dependencies": [
               {
@@ -2958,18 +2870,6 @@
                 "tree": "target"
               },
               {
-                "name": "mio",
-                "package_key": "mio-1.2.0",
-                "kind": "normal",
-                "features": [
-                  "os-ext"
-                ],
-                "uses_default_features": true,
-                "optional": true,
-                "target": "cfg(target_os = \"macos\")",
-                "tree": "target"
-              },
-              {
                 "name": "notify_types",
                 "package_key": "notify-types-2.1.0",
                 "kind": "normal",
@@ -2994,10 +2894,7 @@
             "features": [
               "default",
               "fsevent-sys",
-              "kqueue",
-              "macos_fsevent",
-              "macos_kqueue",
-              "mio"
+              "macos_fsevent"
             ]
           }
         }
@@ -3121,58 +3018,6 @@
               "fallback"
             ]
           },
-          "kqueue-1.1.1": {
-            "runtime_dependencies": [
-              {
-                "name": "kqueue_sys",
-                "package_key": "kqueue-sys-1.1.2",
-                "kind": "normal",
-                "features": [],
-                "uses_default_features": true,
-                "optional": false,
-                "target": null,
-                "tree": "target"
-              },
-              {
-                "name": "libc",
-                "package_key": "libc-0.2.186",
-                "kind": "normal",
-                "features": [],
-                "uses_default_features": true,
-                "optional": false,
-                "target": null,
-                "tree": "target"
-              }
-            ],
-            "build_dependencies": [],
-            "features": []
-          },
-          "kqueue-sys-1.1.2": {
-            "runtime_dependencies": [
-              {
-                "name": "bitflags",
-                "package_key": "bitflags-2.11.1",
-                "kind": "normal",
-                "features": [],
-                "uses_default_features": false,
-                "optional": false,
-                "target": null,
-                "tree": "target"
-              },
-              {
-                "name": "libc",
-                "package_key": "libc-0.2.186",
-                "kind": "normal",
-                "features": [],
-                "uses_default_features": true,
-                "optional": false,
-                "target": null,
-                "tree": "target"
-              }
-            ],
-            "build_dependencies": [],
-            "features": []
-          },
           "notify-8.2.0": {
             "runtime_dependencies": [
               {
@@ -3188,26 +3033,6 @@
               {
                 "name": "fsevent_sys",
                 "package_key": "fsevent-sys-4.1.0",
-                "kind": "normal",
-                "features": [],
-                "uses_default_features": true,
-                "optional": true,
-                "target": "cfg(target_os = \"macos\")",
-                "tree": "target"
-              },
-              {
-                "name": "kqueue",
-                "package_key": "kqueue-1.1.1",
-                "kind": "normal",
-                "features": [],
-                "uses_default_features": true,
-                "optional": false,
-                "target": "cfg(any(target_os = \"freebsd\", target_os = \"openbsd\", target_os = \"netbsd\", target_os = \"dragonflybsd\", target_os = \"ios\"))",
-                "tree": "target"
-              },
-              {
-                "name": "kqueue",
-                "package_key": "kqueue-1.1.1",
                 "kind": "normal",
                 "features": [],
                 "uses_default_features": true,
@@ -3236,42 +3061,6 @@
                 "tree": "target"
               },
               {
-                "name": "mio",
-                "package_key": "mio-1.2.0",
-                "kind": "normal",
-                "features": [
-                  "os-ext"
-                ],
-                "uses_default_features": true,
-                "optional": false,
-                "target": "cfg(any(target_os = \"freebsd\", target_os = \"openbsd\", target_os = \"netbsd\", target_os = \"dragonflybsd\", target_os = \"ios\"))",
-                "tree": "target"
-              },
-              {
-                "name": "mio",
-                "package_key": "mio-1.2.0",
-                "kind": "normal",
-                "features": [
-                  "os-ext"
-                ],
-                "uses_default_features": true,
-                "optional": false,
-                "target": "cfg(any(target_os = \"linux\", target_os = \"android\"))",
-                "tree": "target"
-              },
-              {
-                "name": "mio",
-                "package_key": "mio-1.2.0",
-                "kind": "normal",
-                "features": [
-                  "os-ext"
-                ],
-                "uses_default_features": true,
-                "optional": true,
-                "target": "cfg(target_os = \"macos\")",
-                "tree": "target"
-              },
-              {
                 "name": "notify_types",
                 "package_key": "notify-types-2.1.0",
                 "kind": "normal",
@@ -3296,10 +3085,7 @@
             "features": [
               "default",
               "fsevent-sys",
-              "kqueue",
-              "macos_fsevent",
-              "macos_kqueue",
-              "mio"
+              "macos_fsevent"
             ]
           }
         }
@@ -3440,6 +3226,37 @@
             "build_dependencies": [],
             "features": []
           },
+          "mio-1.2.0": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.186",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(any(unix, target_os = \"hermit\", target_os = \"wasi\"))",
+                "tree": "target"
+              },
+              {
+                "name": "log",
+                "package_key": "log-0.4.29",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "default",
+              "log",
+              "os-ext",
+              "os-poll"
+            ]
+          },
           "notify-8.2.0": {
             "runtime_dependencies": [
               {
@@ -3497,18 +3314,6 @@
                 "tree": "target"
               },
               {
-                "name": "mio",
-                "package_key": "mio-1.2.0",
-                "kind": "normal",
-                "features": [
-                  "os-ext"
-                ],
-                "uses_default_features": true,
-                "optional": true,
-                "target": "cfg(target_os = \"macos\")",
-                "tree": "target"
-              },
-              {
                 "name": "notify_types",
                 "package_key": "notify-types-2.1.0",
                 "kind": "normal",
@@ -3533,10 +3338,7 @@
             "features": [
               "default",
               "fsevent-sys",
-              "kqueue",
-              "macos_fsevent",
-              "macos_kqueue",
-              "mio"
+              "macos_fsevent"
             ]
           }
         }
@@ -3677,6 +3479,37 @@
             "build_dependencies": [],
             "features": []
           },
+          "mio-1.2.0": {
+            "runtime_dependencies": [
+              {
+                "name": "libc",
+                "package_key": "libc-0.2.186",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": false,
+                "target": "cfg(any(unix, target_os = \"hermit\", target_os = \"wasi\"))",
+                "tree": "target"
+              },
+              {
+                "name": "log",
+                "package_key": "log-0.4.29",
+                "kind": "normal",
+                "features": [],
+                "uses_default_features": true,
+                "optional": true,
+                "target": null,
+                "tree": "target"
+              }
+            ],
+            "build_dependencies": [],
+            "features": [
+              "default",
+              "log",
+              "os-ext",
+              "os-poll"
+            ]
+          },
           "notify-8.2.0": {
             "runtime_dependencies": [
               {
@@ -3734,18 +3567,6 @@
                 "tree": "target"
               },
               {
-                "name": "mio",
-                "package_key": "mio-1.2.0",
-                "kind": "normal",
-                "features": [
-                  "os-ext"
-                ],
-                "uses_default_features": true,
-                "optional": true,
-                "target": "cfg(target_os = \"macos\")",
-                "tree": "target"
-              },
-              {
                 "name": "notify_types",
                 "package_key": "notify-types-2.1.0",
                 "kind": "normal",
@@ -3770,10 +3591,7 @@
             "features": [
               "default",
               "fsevent-sys",
-              "kqueue",
-              "macos_fsevent",
-              "macos_kqueue",
-              "mio"
+              "macos_fsevent"
             ]
           }
         }
@@ -3873,14 +3691,14 @@
     "fsevent-sys-4.1.0": {
       "edition": "2018"
     },
-    "gen-macros-0.1.9-6d82c9d3885c781e923ec46330d05d7eca469a3b": {
+    "gen-macros-0.1.30-6b490da46e0bfdc2465ba34d92fd2854d6c2779d": {
       "edition": "2024",
       "proc_macro": true
     },
-    "gen-platform-0.1.9-6d82c9d3885c781e923ec46330d05d7eca469a3b": {
+    "gen-platform-0.1.30-6b490da46e0bfdc2465ba34d92fd2854d6c2779d": {
       "edition": "2024"
     },
-    "gen-types-0.1.9-6d82c9d3885c781e923ec46330d05d7eca469a3b": {
+    "gen-types-0.1.30-6b490da46e0bfdc2465ba34d92fd2854d6c2779d": {
       "edition": "2024"
     },
     "hashbrown-0.17.1": {
@@ -3917,12 +3735,6 @@
       "edition": "2024"
     },
     "itoa-1.0.18": {
-      "edition": "2021"
-    },
-    "kqueue-1.1.1": {
-      "edition": "2021"
-    },
-    "kqueue-sys-1.1.2": {
       "edition": "2021"
     },
     "libc-0.2.186": {
@@ -4036,7 +3848,7 @@
     "serde_yaml-0.9.34+deprecated": {
       "edition": "2021"
     },
-    "shikumi-0.1.1-452827133c40e4c3ae00b3f1d2907d9484785be1": {
+    "shikumi-0.1.452-56adc8828ccb5f4f66258ca66ba402b92ae01dbb": {
       "edition": "2024"
     },
     "shlex-2.0.1": {
@@ -4122,11 +3934,11 @@
     }
   },
   "git_nar_sha256": {
-    "gen-macros-0.1.9-6d82c9d3885c781e923ec46330d05d7eca469a3b": "sha256-KkZmHxQBwz3Q4XNaJVLdl6TLLPiR+erMbGOrrvPRE0A=",
-    "gen-platform-0.1.9-6d82c9d3885c781e923ec46330d05d7eca469a3b": "sha256-KkZmHxQBwz3Q4XNaJVLdl6TLLPiR+erMbGOrrvPRE0A=",
-    "gen-types-0.1.9-6d82c9d3885c781e923ec46330d05d7eca469a3b": "sha256-KkZmHxQBwz3Q4XNaJVLdl6TLLPiR+erMbGOrrvPRE0A=",
+    "gen-macros-0.1.30-6b490da46e0bfdc2465ba34d92fd2854d6c2779d": "sha256-9WZObQ5queOI8UaFOBAieYIUUEVYhxvVtulNa+APCTQ=",
+    "gen-platform-0.1.30-6b490da46e0bfdc2465ba34d92fd2854d6c2779d": "sha256-9WZObQ5queOI8UaFOBAieYIUUEVYhxvVtulNa+APCTQ=",
+    "gen-types-0.1.30-6b490da46e0bfdc2465ba34d92fd2854d6c2779d": "sha256-9WZObQ5queOI8UaFOBAieYIUUEVYhxvVtulNa+APCTQ=",
     "ishou-tokens-0.1.3-113f7763da4ec0cf1932b67fb46be8597f154696": "sha256-y/JKP0zTK/5qXViq3+BRP7HCKZr8z7ztyQrzfP7qw40=",
-    "shikumi-0.1.1-452827133c40e4c3ae00b3f1d2907d9484785be1": "sha256-teZmXyj85UUwXwQ/rZkr9UqWHV0gCK8f7UKiFkpITyA="
+    "shikumi-0.1.452-56adc8828ccb5f4f66258ca66ba402b92ae01dbb": "sha256-SaqMDamyz34cOstgYT1Iy4+ZbsnGgKXvRHF25DfcRqM="
   },
   "flake_metadata": {}
 }
