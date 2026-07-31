@@ -62,7 +62,83 @@ use seki_modules::git_status::{self, GitStatus};
 /// the freshness proof: the value is current iff `gen` still equals the
 /// repo's live generation.
 type Cache = Arc<Mutex<HashMap<PathBuf, (GitStatus, u64)>>>;
-type Watched = Arc<Mutex<HashSet<PathBuf>>>;
+type Watched = Arc<Mutex<WatchSet>>;
+
+/// How many repos may be watched at once.
+///
+/// ★ This bound is the point, not the number. A recursive watch is not free
+/// and its cost is invisible: it is paid in kernel objects, not in anything
+/// the daemon can see about itself. Before this cap the watch set was an
+/// unbounded `HashSet` — every repo the operator ever `cd`-ed into was
+/// watched for the daemon's whole lifetime, and nothing ever released one.
+///
+/// That went unnoticed for a long time because the fleet raised its
+/// per-process FD ceiling to 2^24 on 2026-06-30 to stop an unrelated
+/// exhaustion. A ceiling that high means a runaway watcher never fails — on
+/// 2026-07-31 this daemon was found holding 26,517 open file descriptors and
+/// no limit had complained. Raising a ceiling removes the symptom AND the
+/// signal; a budget is what puts the signal back.
+///
+/// 24 is chosen to sit far above real use (an operator hops between a handful
+/// of repos) and far below anything that costs real resources, so eviction is
+/// effectively unreachable in normal work and strictly bounded in pathological
+/// ones. Eviction is not a failure mode: an unwatched repo simply recomputes
+/// live on query, which `handle_client` already does correctly.
+const MAX_WATCHED_ROOTS: usize = 24;
+
+/// The set of watched repo roots, bounded and least-recently-used ordered.
+///
+/// `order` is most-recently-used first. Membership is O(n) over a set capped
+/// at [`MAX_WATCHED_ROOTS`], so a linear scan is cheaper than the HashMap it
+/// would take to avoid it.
+struct WatchSet {
+    order: Vec<PathBuf>,
+    cap: usize,
+}
+
+impl WatchSet {
+    fn new(cap: usize) -> Self {
+        Self {
+            order: Vec::new(),
+            cap,
+        }
+    }
+
+    fn contains(&self, root: &Path) -> bool {
+        self.order.iter().any(|p| p == root)
+    }
+
+    /// Mark `root` as most-recently-used. No-op if not present.
+    fn touch(&mut self, root: &Path) {
+        if let Some(i) = self.order.iter().position(|p| p == root) {
+            let p = self.order.remove(i);
+            self.order.insert(0, p);
+        }
+    }
+
+    /// Insert `root` as most-recently-used, returning the root evicted to
+    /// stay within `cap` (if any). The caller MUST unwatch whatever is
+    /// returned — this type owns the bound, not the FS registration.
+    fn insert(&mut self, root: PathBuf) -> Option<PathBuf> {
+        self.touch(&root);
+        if self.contains(&root) {
+            return None;
+        }
+        self.order.insert(0, root);
+        if self.order.len() > self.cap {
+            return self.order.pop();
+        }
+        None
+    }
+
+    fn roots(&self) -> Vec<PathBuf> {
+        self.order.clone()
+    }
+
+    fn len(&self) -> usize {
+        self.order.len()
+    }
+}
 /// Per-repo monotonic change generation. Bumped on every FS event for the
 /// repo, and on every watched repo on a rescan/overflow/error. The single
 /// source of truth for "has this repo changed since we last computed it".
@@ -95,7 +171,7 @@ pub fn run() -> anyhow::Result<()> {
     // Past this point we own the socket.
 
     let cache: Cache = Arc::new(Mutex::new(HashMap::new()));
-    let watched: Watched = Arc::new(Mutex::new(HashSet::new()));
+    let watched: Watched = Arc::new(Mutex::new(WatchSet::new(MAX_WATCHED_ROOTS)));
     let generations: Generations = Arc::new(Mutex::new(HashMap::new()));
 
     let (tx, rx) = mpsc::channel();
@@ -217,7 +293,7 @@ fn spawn_recompute_thread(
                     Err(_) => break,
                 }
             }
-            let roots: Vec<PathBuf> = watched.lock().unwrap().iter().cloned().collect();
+            let roots: Vec<PathBuf> = watched.lock().unwrap().roots();
             let facts: Vec<EventFacts> = events
                 .into_iter()
                 .map(|res| match res {
@@ -323,7 +399,11 @@ fn ensure_watched(
     generations: &Generations,
 ) {
     {
-        if watched.lock().unwrap().contains(root) {
+        // Already watched — just refresh its recency so an active repo is
+        // never the one evicted.
+        let mut w = watched.lock().unwrap();
+        if w.contains(root) {
+            w.touch(root);
             return;
         }
     }
@@ -338,7 +418,15 @@ fn ensure_watched(
         // never-invalidated cache entry.
         return;
     }
-    watched.lock().unwrap().insert(root.to_path_buf());
+    // Admit under the bound. Anything displaced is released completely —
+    // FS registration, cached status, and generation — so an evicted repo
+    // leaves nothing behind that could later be served stale.
+    let evicted = watched.lock().unwrap().insert(root.to_path_buf());
+    if let Some(old) = evicted {
+        let _ = watcher.lock().unwrap().unwatch(&old);
+        cache.lock().unwrap().remove(&old);
+        generations.lock().unwrap().remove(&old);
+    }
     generations
         .lock()
         .unwrap()
@@ -446,5 +534,85 @@ mod tests {
         let servable = |live: u64| cached_gen == live;
         assert!(servable(7), "unchanged repo → serve hot cache");
         assert!(!servable(8), "a change bumped the generation → recompute");
+    }
+
+    /// ★ The invariant that would have prevented 2026-07-31 entirely.
+    ///
+    /// notify selects its macOS backend as
+    /// `#[cfg(all(target_os = "macos", not(feature = "macos_kqueue")))] →
+    /// FsEventWatcher`. `macos_kqueue` is a POISON feature: Cargo features are
+    /// additive and unify across the whole graph, so ANY crate anywhere in our
+    /// dependency tree enabling it silently flips this daemon to the kqueue
+    /// backend — and we cannot un-enable it from here. kqueue holds one open
+    /// file descriptor per WATCHED PATH; FSEvents holds none.
+    ///
+    /// That is exactly what happened: shikumi carried the feature (copied from
+    /// gen's own fix-hint, which recommended it), seki inherited it
+    /// transitively, and this daemon was found holding 26,517 open FDs across
+    /// 3,014 paths while every layer looked correct — seki's own Cargo.toml
+    /// says plain `notify = "8"`, whose default is the RIGHT backend.
+    ///
+    /// So the assertion is on the resolved type, not on any manifest: a
+    /// manifest audit cannot see a transitive feature union, and the compiled
+    /// type can never lie about which backend was selected. If a dependency
+    /// re-introduces the feature, this test goes red instead of the fleet
+    /// silently paying FDs for it again.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_resolves_notify_to_the_fsevent_backend_never_kqueue() {
+        let backend = std::any::type_name::<notify::RecommendedWatcher>();
+        assert!(
+            backend.contains("FsEvent"),
+            "notify resolved to `{backend}` — expected the FSEvents backend. \
+             Something in the dependency graph enabled notify's `macos_kqueue` \
+             feature, which holds one open file descriptor per watched path \
+             (measured: 26,517 FDs in this daemon on 2026-07-31). Features are \
+             additive and cannot be un-enabled by a consumer: find the crate \
+             that declares it and change it to `macos_fsevent`."
+        );
+    }
+
+    #[test]
+    fn watch_set_never_exceeds_its_cap_and_evicts_least_recently_used() {
+        let mut w = WatchSet::new(3);
+        assert_eq!(w.insert(root("/a")), None);
+        assert_eq!(w.insert(root("/b")), None);
+        assert_eq!(w.insert(root("/c")), None);
+        assert_eq!(w.len(), 3);
+
+        // /a is the least recently used → it is the one displaced.
+        assert_eq!(w.insert(root("/d")), Some(root("/a")));
+        assert_eq!(w.len(), 3, "the cap is a bound, not a suggestion");
+        assert!(!w.contains(&root("/a")));
+        assert!(w.contains(&root("/d")));
+    }
+
+    #[test]
+    fn an_actively_used_root_is_never_the_one_evicted() {
+        // The failure this guards: an operator working in one repo all day,
+        // while background traffic touches others, must not have their own
+        // repo evicted out from under them.
+        let mut w = WatchSet::new(2);
+        w.insert(root("/work"));
+        w.insert(root("/other"));
+        w.touch(&root("/work"));
+        assert_eq!(
+            w.insert(root("/new")),
+            Some(root("/other")),
+            "the untouched root is displaced, not the active one"
+        );
+        assert!(w.contains(&root("/work")));
+    }
+
+    #[test]
+    fn re_inserting_a_watched_root_evicts_nothing() {
+        // ensure_watched returns early on a known root, but the bound must
+        // hold even if that guard is ever removed — re-admitting an existing
+        // member is a recency update, not growth.
+        let mut w = WatchSet::new(2);
+        w.insert(root("/a"));
+        w.insert(root("/b"));
+        assert_eq!(w.insert(root("/a")), None);
+        assert_eq!(w.len(), 2);
     }
 }
