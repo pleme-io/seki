@@ -402,6 +402,72 @@ pub fn repo_root(cwd: &Path) -> Option<std::path::PathBuf> {
     find_git_dir(cwd).and_then(|g| g.parent().map(Path::to_path_buf))
 }
 
+/// This binary's build identity — the thing that changes when a rebuild
+/// ships a new seki, and the only reliable discriminator available.
+///
+/// It is the executable's own path, which under Nix is its store path.
+/// A **version string cannot serve here**: the daemon caught serving a stale
+/// prompt on 2026-07-31 and the binary that had already replaced it were both
+/// `rust_seki-0.1.14` — same crate version, different store hash. Anything
+/// derived from `CARGO_PKG_VERSION` would have compared equal and left the
+/// superseded daemon answering. Only the store path moved.
+///
+/// `None` when the exe path can't be read; callers then behave exactly as
+/// they did before this handshake existed (an unidentified peer is never
+/// grounds to retire a working daemon).
+#[must_use]
+pub fn build_id() -> Option<String> {
+    std::env::current_exe()
+        .ok()
+        .map(|p| p.to_string_lossy().into_owned())
+}
+
+/// Field separator for the daemon request line. A nix store path can never
+/// contain a tab; a `cwd` containing one is pathological and degrades to a
+/// cache miss (one live read), never to a wrong answer.
+const REQ_SEP: char = '\t';
+
+/// Encode a daemon request as `<build-id>\t<cwd>`, or a bare `<cwd>` when
+/// this binary cannot identify itself.
+///
+/// ★ The build-id goes FIRST deliberately, so the request **fails closed**
+/// against a daemon too old to understand it: such a daemon reads the whole
+/// line as a path, finds no repo there, and answers empty — which the client
+/// rejects and recomputes live. So a superseded daemon stops being able to
+/// serve a stale value the moment the *client* is new, without waiting for
+/// the daemon to learn how to retire itself.
+#[must_use]
+pub fn encode_request(build_id: Option<&str>, cwd: &Path) -> String {
+    let mut out = String::new();
+    if let Some(id) = build_id {
+        out.push_str(id);
+        out.push(REQ_SEP);
+    }
+    out.push_str(&cwd.to_string_lossy());
+    out
+}
+
+/// Parse a request line into `(client build id, cwd)`. A line with no
+/// separator is an old client: no build id, the whole line is the cwd.
+#[must_use]
+pub fn parse_request(line: &str) -> (Option<&str>, &str) {
+    match line.split_once(REQ_SEP) {
+        Some((id, cwd)) => (Some(id), cwd),
+        None => (None, line),
+    }
+}
+
+/// Whether a daemon identifying itself as `own` has been superseded by a
+/// client identifying itself as `client`.
+///
+/// True only when **both** sides identify themselves and disagree. An
+/// unidentified peer is never grounds to retire a working daemon — that
+/// would turn a failed `current_exe()` read into a restart loop.
+#[must_use]
+pub fn is_superseded(client: Option<&str>, own: Option<&str>) -> bool {
+    matches!((client, own), (Some(c), Some(o)) if c != o)
+}
+
 /// Ask a running daemon for `cwd`'s hot status. `None` (fast) when no
 /// daemon is listening — the caller then computes live.
 #[cfg(unix)]
@@ -416,7 +482,9 @@ fn query_daemon(cwd: &Path) -> Option<GitStatus> {
     stream
         .set_write_timeout(Some(Duration::from_millis(200)))
         .ok()?;
-    let mut req = cwd.to_string_lossy().into_owned();
+    // Carries this binary's build identity, so a daemon left running from a
+    // superseded build retires itself instead of answering (see `build_id`).
+    let mut req = encode_request(build_id().as_deref(), cwd);
     req.push('\n');
     stream.write_all(req.as_bytes()).ok()?;
     let mut resp = String::new();
@@ -540,6 +608,46 @@ u UU N... 1 2 3 h1 h2 h3 both.rs
         };
         assert_eq!(GitStatus::from_wire(&st.to_wire()), Some(st));
         assert_eq!(GitStatus::default().to_wire(), "0 0 0 0 0 0 0 0 0");
+    }
+
+    #[test]
+    fn request_carries_the_build_id_and_round_trips() {
+        let cwd = Path::new("/Users/x/code/repo");
+        let req = encode_request(Some("/nix/store/aaa-rust_seki-0.1.14/bin/seki"), cwd);
+        assert_eq!(
+            parse_request(&req),
+            (
+                Some("/nix/store/aaa-rust_seki-0.1.14/bin/seki"),
+                "/Users/x/code/repo"
+            )
+        );
+    }
+
+    #[test]
+    fn an_unidentified_client_sends_a_bare_cwd_the_old_way() {
+        // Wire-compatible with every daemon that predates the handshake.
+        let req = encode_request(None, Path::new("/Users/x/code/repo"));
+        assert_eq!(req, "/Users/x/code/repo");
+        assert_eq!(parse_request(&req), (None, "/Users/x/code/repo"));
+    }
+
+    #[test]
+    fn a_build_id_bearing_request_fails_closed_on_a_pre_handshake_daemon() {
+        // ★ Why the build-id goes FIRST. An old daemon does the equivalent of
+        // `PathBuf::from(line)` on the whole request. With the id leading, the
+        // path it gets is a nix store path — never a repo the operator is in —
+        // so it answers empty and the client recomputes live. Had the id gone
+        // last, the old daemon would have parsed a VALID cwd off the front and
+        // happily served its stale cache: exactly the bug, still shipping.
+        let req = encode_request(
+            Some("/nix/store/aaa-rust_seki-0.1.14/bin/seki"),
+            Path::new("/Users/x/code/repo"),
+        );
+        let as_old_daemon_reads_it = Path::new(req.trim());
+        assert!(
+            !as_old_daemon_reads_it.starts_with("/Users/x/code/repo"),
+            "an old daemon must NOT be able to recover a usable cwd from this"
+        );
     }
 
     #[test]
