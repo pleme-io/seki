@@ -58,10 +58,26 @@
 //! supervisor: the first prompt after a rebuild retires the old daemon, the
 //! second starts the new one, the third is hot again.
 //!
+//! ## What the generation actually proves (and what it assumes)
+//!
+//! Generation validation proves *no event said this repo changed*. It proves
+//! the repo did not change only if the event stream never loses a change
+//! silently — and that premise is unfalsifiable from inside: a change nobody
+//! was told about looks exactly like no change. When it fails, the cache is
+//! confidently and permanently wrong.
+//!
+//! It did fail. On 2026-07-31 a daemon carrying both the rescan fix and the
+//! watcher-rebuild fix served a phantom untracked `?` on a clean tree for
+//! hours. So the premise is not something to reason harder about; it is
+//! something to stop depending on. [`REVALIDATE_AFTER`] caps how long any
+//! generation-current value may be believed, which bounds staleness by
+//! construction no matter how the OS behaves.
+//!
 //! Design guarantees:
-//! - **Never stale (enforced).** Generation-validated reads; a changed repo
-//!   recomputes on the query that observes it. A cache miss (no daemon)
-//!   falls back to a live fork, equally fresh.
+//! - **Bounded stale (enforced, no premise).** Generation-validated reads,
+//!   *plus* an age ceiling: a value is recomputed once it exceeds
+//!   [`REVALIDATE_AFTER`] even if every event said nothing changed. A cache
+//!   miss (no daemon) falls back to a live fork, equally fresh.
 //! - **Never superseded (enforced).** A daemon running a build other than the
 //!   caller's retires instead of answering, so a shipped fix cannot sit unused
 //!   behind a live old process.
@@ -84,10 +100,44 @@ use std::time::{Duration, Instant};
 use notify::{RecursiveMode, Watcher};
 use seki_modules::git_status::{self, GitStatus};
 
-/// A cached status plus the repo generation it was computed at. The pair is
-/// the freshness proof: the value is current iff `gen` still equals the
-/// repo's live generation.
-type Cache = Arc<Mutex<HashMap<PathBuf, (GitStatus, u64)>>>;
+/// A cached status, the repo generation it was computed at, and when. The
+/// generation proves no event says it changed; the [`Instant`] bounds how long
+/// we are willing to believe that (see [`REVALIDATE_AFTER`]).
+type Cache = Arc<Mutex<HashMap<PathBuf, (GitStatus, u64, Instant)>>>;
+
+/// How long a generation-current value may be served before it is recomputed
+/// anyway.
+///
+/// ★ Generation validation is only as good as its premise: that the event
+/// stream never loses a change *silently* — that a coalesced or dropped event
+/// always arrives as `need_rescan`. Every mechanism here rests on that, and
+/// the mechanism cannot check it: a change nobody was told about is
+/// indistinguishable from no change at all. So the cache stays confidently,
+/// permanently wrong, which is the worst failure shape available.
+///
+/// On 2026-07-31 a daemon built *with* the rescan and watcher-rebuild fixes
+/// still served a phantom untracked `?` on a clean tree for hours. Whatever
+/// dropped that event did not announce itself, so no amount of event-path
+/// reasoning would have caught it.
+///
+/// The fix is to stop needing the premise. An age bound makes staleness
+/// **bounded by construction** rather than by the OS honoring a contract:
+/// however the event stream misbehaves, a wrong value cannot outlive this
+/// window. It costs one `git status` fork on the first prompt after a quiet
+/// period — exactly what a daemonless prompt pays anyway, so the floor is the
+/// status quo — while a burst of prompts (when the cache actually earns its
+/// keep) still reads hot.
+const REVALIDATE_AFTER: Duration = Duration::from_secs(10);
+
+/// Whether a cached entry may be served: nothing has changed since it was
+/// computed **and** we have not been believing that for too long.
+///
+/// Split out as a pure function because it is the whole correctness decision,
+/// and the age half of it exists precisely because the generation half can be
+/// silently wrong.
+fn is_servable(cached_gen: u64, live_gen: u64, age: Duration) -> bool {
+    cached_gen == live_gen && age < REVALIDATE_AFTER
+}
 type Watched = Arc<Mutex<WatchSet>>;
 
 /// How many repos may be watched at once.
@@ -401,7 +451,10 @@ fn spawn_recompute_thread(
                     *e
                 };
                 if let Some(st) = git_status::compute_status(&root) {
-                    cache.lock().unwrap().insert(root, (st, generation));
+                    cache
+                        .lock()
+                        .unwrap()
+                        .insert(root, (st, generation, Instant::now()));
                 }
             }
         }
@@ -456,13 +509,16 @@ fn handle_client(
             let hot = {
                 let c = cache.lock().unwrap();
                 match c.get(&root) {
-                    Some((st, g)) if *g == cur => Some(*st),
+                    Some((st, g, at)) if is_servable(*g, cur, at.elapsed()) => Some(*st),
                     _ => None,
                 }
             };
             let fresh = hot.or_else(|| {
                 git_status::compute_status(&root).map(|st| {
-                    cache.lock().unwrap().insert(root.clone(), (st, cur));
+                    cache
+                        .lock()
+                        .unwrap()
+                        .insert(root.clone(), (st, cur, Instant::now()));
                     st
                 })
             });
@@ -547,7 +603,10 @@ fn ensure_watched(
         .or_insert(0);
     if let Some(st) = git_status::compute_status(root) {
         let generation = generation_of(generations, root);
-        cache.lock().unwrap().insert(root.to_path_buf(), (st, generation));
+        cache
+            .lock()
+            .unwrap()
+            .insert(root.to_path_buf(), (st, generation, Instant::now()));
     }
 }
 
@@ -641,12 +700,34 @@ mod tests {
 
     #[test]
     fn generation_mismatch_is_the_staleness_signal() {
-        // Models the wire decision in handle_client: a cached (status, gen)
-        // is servable iff gen still equals the live generation.
-        let cached_gen = 7u64;
-        let servable = |live: u64| cached_gen == live;
-        assert!(servable(7), "unchanged repo → serve hot cache");
-        assert!(!servable(8), "a change bumped the generation → recompute");
+        // A change the event stream DID report bumps the generation.
+        let fresh = Duration::from_millis(0);
+        assert!(is_servable(7, 7, fresh), "unchanged repo → serve hot cache");
+        assert!(!is_servable(7, 8, fresh), "reported change → recompute");
+    }
+
+    /// ★ The invariant for the failure the generation cannot see.
+    ///
+    /// A silently-dropped event leaves the generation matching forever, so on
+    /// the generation alone this entry is servable for the rest of the
+    /// process's life — which is exactly how a phantom `?` survived hours on
+    /// a clean tree. The age ceiling is what makes that impossible without
+    /// having to trust the event stream at all.
+    #[test]
+    fn a_generation_current_value_still_expires() {
+        let agreed = (9u64, 9u64);
+        assert!(
+            is_servable(agreed.0, agreed.1, REVALIDATE_AFTER - Duration::from_millis(1)),
+            "inside the window a matching generation is served — the cache still earns its keep"
+        );
+        assert!(
+            !is_servable(agreed.0, agreed.1, REVALIDATE_AFTER),
+            "at the ceiling it MUST recompute even though no event ever reported a change"
+        );
+        assert!(
+            !is_servable(agreed.0, agreed.1, Duration::from_secs(60 * 60)),
+            "an hour-old 'unchanged' value is the phantom-? bug; it must never be served"
+        );
     }
 
     /// ★ The invariant that would have prevented 2026-07-31 entirely.
