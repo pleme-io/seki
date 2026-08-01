@@ -35,10 +35,36 @@
 //! The hot path (unchanged repo) is still a microsecond cache read; only a
 //! genuinely-changed repo pays a fork, exactly when it must.
 //!
+//! ## The supersession invariant (the second way to be stale)
+//!
+//! Generation validation makes the *data* never stale. It says nothing about
+//! the **code**, and that turned out to be the wider hole. This daemon is
+//! long-lived and autostarted on demand; [`maybe_autostart`] spawns one only
+//! when nothing is listening. So a daemon started before a rebuild keeps
+//! answering forever from the superseded binary, and a fix that ships to disk
+//! never reaches a single prompt — no restart, no supervisor, no signal.
+//!
+//! That is not hypothetical: on 2026-07-31 the three commits fixing the
+//! phantom-`?` event-drop landed, the system was rebuilt, and the prompt was
+//! still wrong — because the process answering it had been running since
+//! before the fix. Both binaries were `rust_seki-0.1.14`; only the store path
+//! differed, so nothing version-shaped could have noticed.
+//!
+//! The seam where old-meets-new is the request, so the check lives there:
+//! every client sends its own [`git_status::build_id`] (its exe path, i.e.
+//! its store path), and a daemon whose own id differs **exits** rather than
+//! answer. The client falls back to a live read for that one render and its
+//! `maybe_autostart` then spawns the current binary. Self-healing, with no
+//! supervisor: the first prompt after a rebuild retires the old daemon, the
+//! second starts the new one, the third is hot again.
+//!
 //! Design guarantees:
 //! - **Never stale (enforced).** Generation-validated reads; a changed repo
 //!   recomputes on the query that observes it. A cache miss (no daemon)
 //!   falls back to a live fork, equally fresh.
+//! - **Never superseded (enforced).** A daemon running a build other than the
+//!   caller's retires instead of answering, so a shipped fix cannot sit unused
+//!   behind a live old process.
 //! - **Singleton.** A second daemon that finds the socket already
 //!   answering exits immediately.
 //! - **On-demand.** A repo is watched the first time it's queried, never
@@ -216,6 +242,8 @@ pub fn run() -> anyhow::Result<()> {
     let cache: Cache = Arc::new(Mutex::new(HashMap::new()));
     let watched: Watched = Arc::new(Mutex::new(WatchSet::new(MAX_WATCHED_ROOTS)));
     let generations: Generations = Arc::new(Mutex::new(HashMap::new()));
+    // Read once: this is what every client's build-id is compared against.
+    let own_build = git_status::build_id();
 
     let (tx, rx) = mpsc::channel();
     let watcher = notify::recommended_watcher(move |res| {
@@ -230,16 +258,24 @@ pub fn run() -> anyhow::Result<()> {
     // so one stuck peer can't wedge the daemon for the whole session.
     for conn in listener.incoming() {
         let Ok(stream) = conn else { continue };
-        let (cache, watched, watcher, generations) = (
+        let (cache, watched, watcher, generations, own_build) = (
             cache.clone(),
             watched.clone(),
             watcher.clone(),
             generations.clone(),
+            own_build.clone(),
         );
         std::thread::spawn(move || {
             let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
             let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
-            handle_client(stream, &cache, &watched, &watcher, &generations);
+            handle_client(
+                stream,
+                &cache,
+                &watched,
+                &watcher,
+                &generations,
+                own_build.as_deref(),
+            );
         });
     }
     Ok(())
@@ -375,12 +411,17 @@ fn spawn_recompute_thread(
 /// Answer one request: read the client's cwd, ensure its repo is watched,
 /// and write back a **generation-validated** status — the cached value if it
 /// was computed at the repo's current generation, else a fresh live compute.
+///
+/// Before any of that, honor the build handshake: a client from a *different*
+/// build than ours means a rebuild has superseded this process, so we retire
+/// (see [`run`]'s doc on the supersession hole).
 fn handle_client(
     stream: UnixStream,
     cache: &Cache,
     watched: &Watched,
     watcher: &WatcherHandle,
     generations: &Generations,
+    own_build: Option<&str>,
 ) {
     let Ok(reader_stream) = stream.try_clone() else {
         return;
@@ -390,7 +431,18 @@ fn handle_client(
     if reader.read_line(&mut line).is_err() {
         return;
     }
-    let cwd = PathBuf::from(line.trim());
+    let (client_build, cwd_field) = git_status::parse_request(line.trim());
+    if git_status::is_superseded(client_build, own_build) {
+        // A newer seki is on disk and this process is running the old code.
+        // Answer nothing (the client recomputes live, so this render is still
+        // correct) and exit, releasing the socket — the client's
+        // `maybe_autostart` then finds no listener and spawns the new binary.
+        // Exiting is the whole point: staying alive is what let a fixed build
+        // sit unused on disk while the old one kept answering.
+        let _ = stream.shutdown(std::net::Shutdown::Both);
+        std::process::exit(0);
+    }
+    let cwd = PathBuf::from(cwd_field);
     let response = match git_status::repo_root(&cwd) {
         Some(root) => {
             ensure_watched(&root, cache, watched, watcher, generations);
@@ -728,6 +780,34 @@ mod tests {
         // silently break any repo that tracks a directory of that name.
         let roots = [root("/repo")];
         assert!(!classify_events(&[plain(&["/repo/target/debug/x.o"])], &roots).is_empty());
+    }
+
+    /// ★ The invariant that would have prevented 2026-07-31 reaching the
+    /// prompt at all: a daemon from a superseded build must retire, not answer.
+    #[test]
+    fn a_daemon_retires_when_the_caller_is_from_a_different_build() {
+        use seki_modules::git_status::is_superseded;
+        // The real pair, verbatim — both `rust_seki-0.1.14`. This is why the
+        // discriminator is the store path and not the crate version.
+        let old = Some("/nix/store/h0bw2av0j1v250j83ll3wakssz8c0wbc-rust_seki-0.1.14/bin/seki");
+        let new = Some("/nix/store/9hrl6jbflz63yk72d15gcsmnv5yn0rrh-rust_seki-0.1.14/bin/seki");
+        assert!(
+            is_superseded(new, old),
+            "a daemon running the old build MUST retire when the new one calls"
+        );
+        assert!(!is_superseded(old, old), "same build → keep serving");
+    }
+
+    #[test]
+    fn an_unidentifiable_peer_never_retires_a_working_daemon() {
+        use seki_modules::git_status::is_superseded;
+        // An old client predating the handshake, and a failed `current_exe()`
+        // on either side, must all be inert — otherwise a daemon that cannot
+        // read its own exe path would exit on every single request.
+        let id = Some("/nix/store/aaa-rust_seki-0.1.14/bin/seki");
+        assert!(!is_superseded(None, id), "old client → serve, don't retire");
+        assert!(!is_superseded(id, None), "unknown own id → serve");
+        assert!(!is_superseded(None, None));
     }
 
     #[test]
