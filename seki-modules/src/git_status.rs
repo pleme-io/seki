@@ -1,6 +1,8 @@
 //! `git_status` — working-tree status as emoji/glyph indicators.
 //!
-//! Reads the porcelain-v2 status (`git status --porcelain=v2 --branch`)
+//! Reads the porcelain-v2 status
+//! (`git --no-optional-locks status --porcelain=v2 --branch` — the
+//! lock-free flag is required, see [`run_git_status`])
 //! in a single bounded `git` invocation and counts the staged /
 //! modified / deleted / renamed / untracked / conflicted entries plus
 //! the ahead/behind distance from the `# branch.ab` header. Stash depth
@@ -326,12 +328,39 @@ pub fn count_stash(git_dir: &Path) -> u32 {
     }
 }
 
-/// Run `git status --porcelain=v2 --branch` in `cwd`, returning its
+/// Run `git --no-optional-locks status --porcelain=v2 --branch` in `cwd`,
+/// returning its
 /// stdout. Bounded by [`STATUS_TIMEOUT`]: the child is read on a worker
 /// thread (so a large status can't deadlock the pipe) and killed if it
 /// overruns. `None` on spawn failure, non-zero exit, or timeout.
 fn run_git_status(cwd: &Path) -> Option<String> {
     let mut child = Command::new("git")
+        // ── ★ `--no-optional-locks` IS LOAD-BEARING, NOT A TUNING KNOB ────
+        // A plain `git status` REWRITES the index to refresh cached stat
+        // data, and to do that it takes `.git/index.lock`. We hard-kill the
+        // child on STATUS_TIMEOUT (below), and SIGKILL runs no cleanup — so
+        // a timed-out status leaves a stale lock behind, and every later
+        // `git commit` / `nix flake update` in that repo dies with
+        //     fatal: Unable to create '.../.git/index.lock': File exists.
+        // The operator sees a repo that refuses writes for no visible
+        // reason, long after the prompt that broke it scrolled away.
+        //
+        // MEASURED 2026-08-02, 30k-file repo, Apple git 2.50.1:
+        //   plain              -> index mtime changes (lock taken)
+        //   --no-optional-locks-> index untouched      (no lock)
+        //   status wall time    2.050s vs our 1000ms ceiling — so the kill
+        //                       path is the COMMON path on a big repo, not
+        //                       an edge case
+        //   SIGKILL at 1.8s    -> stale 655360-byte .git/index.lock
+        // Observed in the wild on the nix repo the same day: a 0-byte lock
+        // owned by /usr/bin/git (this daemon's launchd PATH has no nix git),
+        // left mid-rebuild, which blocked a commit until removed by hand.
+        //
+        // This is the fix rather than a longer timeout or a gentler signal:
+        // it removes the lock from the interaction entirely, so a status we
+        // kill at ANY instant cannot leave one. A timeout bump only shrinks
+        // the window; this closes it.
+        .arg("--no-optional-locks")
         .args(["status", "--porcelain=v2", "--branch"])
         .current_dir(cwd)
         .stdin(Stdio::null())
