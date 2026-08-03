@@ -7,9 +7,19 @@
 //! with the configured command as `sh -c "<cmd>"` only as a final
 //! step. The `when` predicate is treated the same way.
 //!
-//! Output is bounded by the top-level `command_timeout_ms`; we
-//! don't enforce that inside the module (the M2 renderer hasn't
-//! taken on subprocess supervision yet).
+//! ── ★ BOTH COMMANDS RUN UNDER A REAL DEADLINE ──────────────────────────
+//! This block used to read: "Output is bounded by the top-level
+//! `command_timeout_ms`; we don't enforce that inside the module (the M2
+//! renderer hasn't taken on subprocess supervision yet)." Every clause of
+//! that was true except the first — there is no top-level
+//! `command_timeout_ms` anywhere in seki's config tree, so the bound was
+//! credited to an authority that does not exist and nothing enforced it.
+//!
+//! `.output()` and `.status()` block forever. This segment runs
+//! OPERATOR-CONFIGURED shell, so a command touching a stale NFS mount, a
+//! sleeping VPN or a dead endpoint hung every prompt on the machine.
+//! Both call sites now go through `seki_core::exec`, which kills and reaps
+//! the child at the deadline rather than abandoning it.
 
 use seki_core::{
     Module, RenderContext, Segment, SekiResult,
@@ -43,10 +53,13 @@ impl Module for CustomModule {
             if !entry.enabled {
                 continue;
             }
-            if !satisfies_when(&entry.when) {
+            // One budget covers the predicate AND the value command, so a
+            // slow `when` cannot spend the value command's allowance.
+            let budget = entry.budget();
+            if !satisfies_when(&entry.when, budget) {
                 continue;
             }
-            let Some(output) = run_command(&entry.command) else {
+            let Some(output) = run_command(&entry.command, budget) else {
                 continue;
             };
             if output.is_empty() {
@@ -66,25 +79,22 @@ impl Module for CustomModule {
     }
 }
 
-fn satisfies_when(when: &Option<String>) -> bool {
+/// The `when` predicate, under the entry's budget.
+///
+/// A predicate that does not finish in time is FALSE. Treating an
+/// unanswered check as satisfied would render a segment the operator's
+/// `when` clause exists to suppress — and it would do so precisely when
+/// the system is unhealthy enough to be slow.
+fn satisfies_when(when: &Option<String>, budget: std::time::Duration) -> bool {
     let Some(cmd) = when else {
         return true;
     };
-    Command::new("sh")
-        .arg("-c")
-        .arg(cmd)
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+    seki_core::exec::bounded_success(Command::new("sh").arg("-c").arg(cmd), budget)
 }
 
-fn run_command(cmd: &str) -> Option<String> {
-    let output = Command::new("sh").arg("-c").arg(cmd).output().ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let s = String::from_utf8_lossy(&output.stdout).trim().to_owned();
-    Some(s)
+/// The value command, under the entry's budget.
+fn run_command(cmd: &str, budget: std::time::Duration) -> Option<String> {
+    seki_core::exec::bounded_stdout(Command::new("sh").arg("-c").arg(cmd), budget)
 }
 
 /// Helper for declarative entry construction in the blzsh-parity
@@ -104,6 +114,7 @@ pub fn entry(
         style: seki_core::style::StyleSpec::new(style),
         format: format.to_owned(),
         ignore_timeout: false,
+        command_timeout_ms: CustomEntry::default().command_timeout_ms,
     }
 }
 
