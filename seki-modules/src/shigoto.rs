@@ -2,6 +2,25 @@
 //!
 //! Pleme-io-native (Tier 3). Probes the shigoto daemon via HTTP at
 //! `SHIGOTO_ADDR` (default `http://127.0.0.1:38830`), parses the
+//! ── ★ TIER-HONEST: NOTHING SERVES THIS ENDPOINT TODAY ───────────────────
+//! This segment probes `SHIGOTO_ADDR/v1/snapshot` (default
+//! `http://127.0.0.1:38830`). Measured 2026-08-03: NO process in the fleet
+//! serves that path — `grep -rn "v1/snapshot"` outside this crate returns
+//! nothing. The segment is therefore correct-and-unreached, not proven: it
+//! renders nothing because the probe always fails, which is the right
+//! behavior and also means its parsing has never met a real body.
+//!
+//! When a server does land, the shape to emit is
+//! `shigoto_types::SnapshotSummary` (shigoto b30a3c2) — serde-serializable
+//! named counts derived from `Snapshot::phase_counts`. Its `"running"` and
+//! `"pending"` fields are exactly what `parse_snapshot_counts` reads
+//! FIRST, so the contract already lines up and the substring tally below
+//! becomes a legacy path that can be deleted rather than migrated.
+//!
+//! The tally exists because shigoto published no contract; that is now
+//! fixed at the source. Do not add a second scraping heuristic here — add
+//! the field upstream.
+//!
 //! snapshot JSON, and emits a typed segment with the count of running
 //! + pending jobs.
 //!
