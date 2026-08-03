@@ -35,13 +35,40 @@ pub struct Segment {
     /// debugging + the `seki module <NAME>` subcommand.
     pub module: String,
     pub fragments: Vec<StyledFragment>,
+    /// ── ★ "I MUST NOT ABUT THE SEGMENT BEFORE ME" ────────────────────
+    /// Segments are concatenated with no separator, so each one owns its
+    /// own trailing space by convention. That convention has a hole: it
+    /// only works if every segment that MIGHT precede you actually
+    /// rendered. `git_branch` emitted `main` with no trailing space and
+    /// relied on `git_status` to supply one — and `git_status` correctly
+    /// renders nothing in a clean repo, so the prompt read `mainvia ⊿`
+    /// in every clean Rust repo in the fleet.
+    ///
+    /// A blanket "always separate" rule in the renderer is wrong: `main`
+    /// and `!?` abut ON PURPOSE, and forcing a space there would be a
+    /// regression. So separation is DECLARED by the segment that needs
+    /// it, and applied only when the accumulated output does not already
+    /// end in whitespace — which makes it idempotent and leaves every
+    /// deliberate adjacency untouched.
+    #[serde(default)]
+    pub needs_leading_space: bool,
 }
 
 impl Segment {
+    /// Declare that this segment must not run into whatever precedes it.
+    #[must_use]
+    pub fn with_leading_space(mut self) -> Self {
+        self.needs_leading_space = true;
+        self
+    }
+
     pub fn new<S: Into<String>>(module: S) -> Self {
         Self {
             module: module.into(),
             fragments: Vec::new(),
+            // Off by default: abutting is the existing behaviour and some
+            // of it is deliberate (`main` + `!?`). A segment opts in.
+            needs_leading_space: false,
         }
     }
 
