@@ -30,8 +30,8 @@ use seki_core::{
     segment::StyledFragment,
     style::{Style, StyleSpec},
 };
-use std::process::{Command, Stdio};
-use std::sync::{Mutex, mpsc};
+use std::process::Command;
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 /// Cached probe result — populated on the first successful render,
@@ -149,36 +149,20 @@ pub fn format_status(count: u32, stale: bool) -> String {
 /// non-clean repos, or `None` if tend is missing / failed /
 /// timed out.
 ///
-/// The renderer is sync — we use a thread + `recv_timeout` rather
-/// than tokio to keep the dependency tree minimal.
+/// ── ★ KILL THE CHILD; recv_timeout ONLY STOPPED WAITING ────────────────
+/// Was `thread::spawn` + `mpsc::recv_timeout`, which returned control on
+/// time and ABANDONED the child — a wedged `tend status` kept running,
+/// holding its pipes, and its worker thread leaked with it. Once is
+/// nothing; this runs before EVERY shell prompt, so it accumulates a
+/// process per render against a hung binary.
+///
+/// `seki_core::exec` kills and reaps at the deadline. It also closes
+/// stdin, so a probe that reads stdin cannot block on the terminal the
+/// prompt is about to draw.
 fn probe_tend(command: &str, timeout_ms: u64) -> Option<u32> {
-    let cmd = command.to_owned();
-    let (tx, rx) = mpsc::channel::<Option<u32>>();
-    std::thread::spawn(move || {
-        let result = run_tend_status(&cmd);
-        // Receiver may have dropped on timeout — ignore send errors.
-        let _ = tx.send(result);
-    });
-    rx.recv_timeout(Duration::from_millis(timeout_ms))
-        .ok()
-        .and_then(|r| r)
-}
-
-/// Run `tend status` synchronously, capturing stdout. Returns the
-/// non-clean count or `None` on any failure (spawn error, non-zero
-/// exit, non-UTF8 output).
-fn run_tend_status(command: &str) -> Option<u32> {
-    let output = Command::new(command)
-        .arg("status")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .stdin(Stdio::null())
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let text = String::from_utf8(output.stdout).ok()?;
+    let mut cmd = Command::new(command);
+    cmd.arg("status");
+    let text = seki_core::exec::bounded_stdout(&mut cmd, Duration::from_millis(timeout_ms))?;
     parse_tend_status_text(&text)
 }
 

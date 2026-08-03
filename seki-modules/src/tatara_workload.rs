@@ -17,8 +17,8 @@ use seki_core::{
     Module, RenderContext, Segment, SekiResult, config::tatara_workload::TataraWorkloadConfig,
     segment::StyledFragment,
 };
-use std::process::{Command, Stdio};
-use std::sync::{Mutex, mpsc};
+use std::process::Command;
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Copy)]
@@ -102,32 +102,15 @@ pub fn format_status(count: u32, stale: bool) -> String {
     s
 }
 
+/// ── ★ KILL THE CHILD, DO NOT ABANDON IT ────────────────────────────────
+/// Was `thread::spawn` + `recv_timeout`: control returned on time, the
+/// child did not. At prompt frequency that is one leaked process per
+/// render against a wedged binary. `seki_core::exec` kills and reaps, and
+/// closes stdin so a reader cannot block on the terminal being drawn.
 fn probe_tatara(command: &str, timeout_ms: u64) -> Option<u32> {
-    let cmd = command.to_owned();
-    let (tx, rx) = mpsc::channel::<Option<u32>>();
-    std::thread::spawn(move || {
-        let result = run_tatara_node_list(&cmd);
-        let _ = tx.send(result);
-    });
-    rx.recv_timeout(Duration::from_millis(timeout_ms))
-        .ok()
-        .and_then(|r| r)
-}
-
-fn run_tatara_node_list(command: &str) -> Option<u32> {
-    let output = Command::new(command)
-        .arg("node")
-        .arg("list")
-        .arg("--format=json")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .stdin(Stdio::null())
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let text = String::from_utf8(output.stdout).ok()?;
+    let mut cmd = Command::new(command);
+    cmd.arg("node").arg("list").arg("--format=json");
+    let text = seki_core::exec::bounded_stdout(&mut cmd, Duration::from_millis(timeout_ms))?;
     parse_tatara_json(&text)
 }
 
