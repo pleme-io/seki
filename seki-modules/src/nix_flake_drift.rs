@@ -144,16 +144,32 @@ fn run_drift_sweep(
     let metadata = run_nix_metadata(&cfg.nix_command, cwd, metadata_budget)?;
     let inputs = parse_pleme_io_inputs(&metadata, &cfg.input_prefix);
 
+    // ── ★ ZERO DRIFT AND ZERO KNOWLEDGE ARE NOT THE SAME ANSWER ──────────
+    // Each of these paths used to `return Some(0)`, which the renderer
+    // styles as "drift: 0" — the fleet is current. But no input was
+    // compared on any of them:
+    //
+    //   * metadata parsed to zero inputs  → we do not know what to compare
+    //   * the time budget is spent        → we did not get to compare
+    //
+    // The offline case is the one that bites: on a laptop with no network
+    // every `ls-remote` fails, and the old loop counted each failure as
+    // "not behind" — so a machine that could not reach a single upstream
+    // reported the whole fleet up to date. That is precisely backwards from
+    // what the operator needs, and it is silent, and the maintenance
+    // directive calls a stale lock a cardinal sin. `None` renders nothing
+    // at all, which is honest: we have no reading.
     if inputs.is_empty() {
-        return Some(0);
+        return None;
     }
     let remaining = total_timeout.saturating_sub(started.elapsed());
     if remaining.is_zero() {
-        return Some(0);
+        return None;
     }
     let per_input = (remaining / inputs.len() as u32).max(Duration::from_millis(50));
 
     let mut behind: u32 = 0;
+    let mut compared: u32 = 0;
     for input in &inputs {
         if started.elapsed() >= total_timeout {
             break;
@@ -161,12 +177,37 @@ fn run_drift_sweep(
         let upstream = run_git_ls_remote(&cfg.git_command, &input.url, "main", per_input)
             .or_else(|| run_git_ls_remote(&cfg.git_command, &input.url, "HEAD", per_input));
         if let Some(upstream_rev) = upstream {
-            if !input.rev.is_empty() && upstream_rev != input.rev {
+            if input.rev.is_empty() {
+                // A locked input with no rev is unjudgeable, not up to date.
+                continue;
+            }
+            compared += 1;
+            if upstream_rev != input.rev {
                 behind += 1;
             }
         }
     }
-    Some(behind)
+    drift_from_counts(compared, behind)
+}
+
+/// The rule, separated from the IO: a drift count is reportable ONLY when
+/// at least one input was actually compared.
+///
+/// Pure so the distinction between "measured zero" and "measured nothing"
+/// is provable without nix, git, a network or a clock — a rule reachable
+/// only through three subprocesses is a rule nobody tests.
+#[must_use]
+pub fn drift_from_counts(compared: u32, behind: u32) -> Option<u32> {
+    if compared == 0 { None } else { Some(behind) }
+}
+
+/// Test-facing shim: `compared[i]` is whether input `i` was reachable.
+#[cfg(test)]
+fn drift_from(reachable: &[bool], behind: u32) -> Option<u32> {
+    drift_from_counts(
+        u32::try_from(reachable.iter().filter(|r| **r).count()).unwrap_or(0),
+        behind,
+    )
 }
 
 fn run_nix_metadata(nix_command: &str, cwd: &std::path::Path, timeout: Duration) -> Option<String> {
@@ -311,6 +352,38 @@ fn extract_string_field(body: &str, name: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+
+    // ── ★ "drift: 0" MUST MEAN "I COMPARED, AND NOTHING MOVED" ──────────
+    // Three paths used to return Some(0), which renders as the fleet being
+    // current. None of them compared an input. The offline case is the one
+    // that bites: every ls-remote fails, so a laptop with no network
+    // reported the whole fleet up to date.
+    //
+    // These pin the DISTINCTION, not the arithmetic: Some(0) is a reading,
+    // None is the absence of one, and only the first may render.
+
+    #[test]
+    fn an_empty_input_set_is_no_reading_not_zero_drift() {
+        // Nothing to compare means we do not know the drift, and saying
+        // "0" would assert a measurement never taken.
+        assert_eq!(super::drift_from(&[], 0), None);
+    }
+
+    #[test]
+    fn comparing_nothing_because_every_upstream_was_unreachable_is_no_reading() {
+        // 4 inputs known, 0 successfully compared — the offline laptop.
+        assert_eq!(super::drift_from(&[false; 4], 0), None);
+    }
+
+    #[test]
+    fn a_real_comparison_still_reports_its_count() {
+        // The honest half: when inputs WERE compared, the count renders,
+        // including a genuine zero. Without this the fix could pass by
+        // never reporting anything.
+        assert_eq!(super::drift_from(&[true, true, true], 0), Some(0));
+        assert_eq!(super::drift_from(&[true, true, true], 2), Some(2));
+    }
+
     use super::*;
 
     #[test]
