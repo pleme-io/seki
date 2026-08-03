@@ -224,14 +224,33 @@ pub fn split_response_body(response: &str) -> Option<&str> {
     response.find("\r\n\r\n").map(|i| &response[i + 4..])
 }
 
+/// `(running, pending)` from a scheduler snapshot, or `None` when the body
+/// carries neither form of evidence.
+///
+/// ── ★ "IDLE" AND "UNREADABLE" ARE DIFFERENT ANSWERS ─────────────────────
+/// The counts come from one of two shapes: explicit `"running"`/`"pending"`
+/// fields, or a tally of `"phase"` entries. When a body has NEITHER — an
+/// error page, a truncated read, a schema that moved — the phase tally
+/// returns 0 for both, and the renderer styles `(0, 0)` as
+/// **"shigoto: idle"** in aurora green. A snapshot we could not understand
+/// read as a scheduler with nothing to do.
+///
+/// Both `?`s below were dead for the same reason: `or_else(|| Some(…))`
+/// cannot produce `None`, so the fallback swallowed the very case the
+/// question marks were there to catch. The evidence check is now explicit.
 pub fn parse_snapshot_counts(body: &str) -> Option<(u32, u32)> {
-    let running =
-        extract_u32_field(body, "running").or_else(|| Some(count_phase(body, "Running") as u32))?;
-    let pending = extract_u32_field(body, "pending").or_else(|| {
-        let q = count_phase(body, "Queued") as u32;
-        let r = count_phase(body, "Ready") as u32;
-        Some(q + r)
-    })?;
+    let explicit_running = extract_u32_field(body, "running");
+    let explicit_pending = extract_u32_field(body, "pending");
+    // A tally is only meaningful over a body that actually carries phases;
+    // otherwise "zero Running entries" is a statement about a document
+    // that has no entries at all.
+    let has_phases = body.contains("\"phase\"");
+    if explicit_running.is_none() && explicit_pending.is_none() && !has_phases {
+        return None;
+    }
+    let running = explicit_running.unwrap_or_else(|| count_phase(body, "Running") as u32);
+    let pending = explicit_pending
+        .unwrap_or_else(|| count_phase(body, "Queued") as u32 + count_phase(body, "Ready") as u32);
     Some((running, pending))
 }
 
@@ -259,6 +278,55 @@ fn count_phase(body: &str, value: &str) -> usize {
 
 #[cfg(test)]
 mod tests {
+
+    // ── ★ AN UNREADABLE SNAPSHOT IS NOT AN IDLE SCHEDULER ───────────────
+    // `(0, 0)` renders as "shigoto: idle" in aurora green. A body with no
+    // explicit counts AND no phase entries used to tally to exactly that,
+    // so an error page or a moved schema read as "nothing to do".
+    //
+    // Red run: drop the `has_phases` guard and the first two cases return
+    // `Some((0, 0))` — the literal bytes that render as idle.
+
+    #[test]
+    fn a_body_with_no_evidence_at_all_is_no_reading() {
+        assert_eq!(super::parse_snapshot_counts(""), None);
+        assert_eq!(
+            super::parse_snapshot_counts("<html>502 Bad Gateway</html>"),
+            None
+        );
+        // Valid JSON, wrong document — the schema moved.
+        assert_eq!(
+            super::parse_snapshot_counts(r#"{"jobs":[],"version":2}"#),
+            None
+        );
+    }
+
+    #[test]
+    fn a_genuinely_idle_scheduler_still_reports_zero() {
+        // The honest half: a snapshot that DOES carry the evidence and
+        // says zero must still render idle, or the fix would pass by
+        // never reporting anything.
+        assert_eq!(
+            super::parse_snapshot_counts(r#"{"running":0,"pending":0}"#),
+            Some((0, 0))
+        );
+        // Phase-shaped, present but empty of active work.
+        assert_eq!(
+            super::parse_snapshot_counts(r#"{"jobs":[{"phase":"Succeeded"}]}"#),
+            Some((0, 0))
+        );
+    }
+
+    #[test]
+    fn explicit_fields_and_phase_tallies_both_still_work() {
+        assert_eq!(
+            super::parse_snapshot_counts(r#"{"running":3,"pending":7}"#),
+            Some((3, 7))
+        );
+        let phases = r#"{"jobs":[{"phase":"Running"},{"phase":"Running"},{"phase":"Queued"},{"phase":"Ready"}]}"#;
+        assert_eq!(super::parse_snapshot_counts(phases), Some((2, 2)));
+    }
+
     use super::*;
     use std::collections::HashMap;
 
