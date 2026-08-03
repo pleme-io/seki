@@ -20,6 +20,7 @@
 pub mod config;
 pub mod context;
 pub mod error;
+pub mod exec;
 pub mod format;
 pub mod init;
 pub mod module;

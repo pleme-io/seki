@@ -331,7 +331,11 @@ pub fn blzsh_parity_config() -> SekiConfig {
                         when: Some("[ -n \"$TEAR_PANE_ID\" ]".to_owned()),
                         style: StyleSpec::new("dimmed #88C0D0"),
                         format: "[· $output]($style) ".to_owned(),
+                        // Both commands here are pure shell-builtin string
+                        // ops on an env var — microseconds, no I/O. The
+                        // budget is a backstop, not a constraint.
                         ignore_timeout: true,
+                        command_timeout_ms: 500,
                     },
                 );
                 m
