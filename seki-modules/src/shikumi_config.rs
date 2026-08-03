@@ -25,7 +25,7 @@ use seki_core::{
     Module, RenderContext, Segment, SekiResult, config::shikumi_config::ShikumiConfigConfig,
     segment::StyledFragment,
 };
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -164,31 +164,22 @@ fn env_lookup(name: &str) -> Option<String> {
 ///
 /// Sync — uses a thread + `recv_timeout` to bound the probe without
 /// pulling tokio into the dep tree (mirrors `tend::probe_tend`).
+/// ── ★ KILL THE CHILD, AND THIS ONE FANS OUT ────────────────────────────
+/// Was `thread::spawn` + `recv_timeout`, which returned on time and
+/// abandoned the child. Worse here than in the sibling segments: this
+/// probe runs ONCE PER CONFIGURED APP on every render, so a single wedged
+/// binary leaks N processes and N threads per prompt.
+///
+/// `seki_core::exec` kills and reaps. A timed-out probe stays `false` —
+/// an unanswered check is not a satisfied one.
 fn probe_config_show(app: &str, tier: &str, timeout_ms: u64) -> bool {
-    let app_owned = app.to_owned();
-    let tier_owned = tier.to_owned();
-    let (tx, rx) = std::sync::mpsc::channel::<bool>();
-    std::thread::spawn(move || {
-        let result = run_config_show(&app_owned, &tier_owned);
-        let _ = tx.send(result);
-    });
-    rx.recv_timeout(Duration::from_millis(timeout_ms))
-        .unwrap_or(false)
+    let mut cmd = Command::new(app);
+    cmd.arg("config-show").arg(tier);
+    seki_core::exec::bounded_success(&mut cmd, Duration::from_millis(timeout_ms))
 }
 
 /// Run `<app> config-show <tier>` synchronously. Returns `true` iff
 /// the spawn succeeded AND the exit status was zero.
-fn run_config_show(app: &str, tier: &str) -> bool {
-    Command::new(app)
-        .arg("config-show")
-        .arg(tier)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .stdin(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
-}
 
 /// Build the cache map view from a snapshot — useful for testing
 /// (kept in case future tests need it; not used in render path).
