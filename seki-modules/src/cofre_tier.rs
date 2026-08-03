@@ -15,8 +15,7 @@
 //! path-traversal guard as `fleet_node`.
 
 use seki_core::{
-    Module, RenderContext, Segment, SekiResult,
-    config::cofre_tier::CofreTierConfig,
+    Module, RenderContext, Segment, SekiResult, config::cofre_tier::CofreTierConfig,
     segment::StyledFragment,
 };
 use serde::Deserialize;

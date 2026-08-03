@@ -282,7 +282,10 @@ mod tests {
 
     #[test]
     fn parse_status_503() {
-        assert_eq!(parse_status("HTTP/1.1 503 Service Unavailable\r\n"), Some(503));
+        assert_eq!(
+            parse_status("HTTP/1.1 503 Service Unavailable\r\n"),
+            Some(503)
+        );
     }
 
     #[test]

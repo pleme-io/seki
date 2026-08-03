@@ -225,8 +225,8 @@ pub fn split_response_body(response: &str) -> Option<&str> {
 }
 
 pub fn parse_snapshot_counts(body: &str) -> Option<(u32, u32)> {
-    let running = extract_u32_field(body, "running")
-        .or_else(|| Some(count_phase(body, "Running") as u32))?;
+    let running =
+        extract_u32_field(body, "running").or_else(|| Some(count_phase(body, "Running") as u32))?;
     let pending = extract_u32_field(body, "pending").or_else(|| {
         let q = count_phase(body, "Queued") as u32;
         let r = count_phase(body, "Ready") as u32;

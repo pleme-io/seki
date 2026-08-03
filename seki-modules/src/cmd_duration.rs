@@ -4,8 +4,7 @@
 //! the env var is unset.
 
 use seki_core::{
-    Module, RenderContext, Segment, SekiResult,
-    config::cmd_duration::CmdDurationConfig,
+    Module, RenderContext, Segment, SekiResult, config::cmd_duration::CmdDurationConfig,
     segment::StyledFragment,
 };
 
@@ -37,10 +36,9 @@ impl Module for CmdDurationModule {
         }
         let duration = format_duration(ms, self.cfg.show_milliseconds);
         let text = seki_core::format::render_one(&self.cfg.format, "duration", &duration);
-        Ok(Some(Segment::new("cmd_duration").push(StyledFragment::new(
-            text,
-            self.cfg.style.resolve(),
-        ))))
+        Ok(Some(
+            Segment::new("cmd_duration").push(StyledFragment::new(text, self.cfg.style.resolve())),
+        ))
     }
 }
 
@@ -119,9 +117,6 @@ mod tests {
 
     #[test]
     fn render_strips_starship_markup() {
-        assert_eq!(
-            render_one("[$duration]($style) ", "duration", "5s"),
-            "5s "
-        );
+        assert_eq!(render_one("[$duration]($style) ", "duration", "5s"), "5s ");
     }
 }

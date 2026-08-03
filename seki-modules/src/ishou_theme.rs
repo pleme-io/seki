@@ -47,10 +47,9 @@ impl Module for IshouThemeModule {
     fn render(&self, _ctx: &RenderContext) -> SekiResult<Option<Segment>> {
         let theme = prescribed_theme_name();
         let text = seki_core::format::render_one(&self.cfg.format, "theme", theme);
-        Ok(Some(Segment::new("ishou_theme").push(StyledFragment::new(
-            text,
-            self.cfg.style.resolve(),
-        ))))
+        Ok(Some(
+            Segment::new("ishou_theme").push(StyledFragment::new(text, self.cfg.style.resolve())),
+        ))
     }
 }
 

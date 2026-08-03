@@ -83,10 +83,19 @@ fn render_frostmourne(f: &mut fmt::Formatter<'_>, bin: &str) -> fmt::Result {
     writeln!(f, ";; lisp/10-prompt.lisp from your layer to use this.")?;
     writeln!(f, ";;")?;
     writeln!(f, ";; Never-stale refresh: SEKI_DAEMON=auto brings up the")?;
-    writeln!(f, ";; FS-watch hot-status daemon after the first prompt, so")?;
+    writeln!(
+        f,
+        ";; FS-watch hot-status daemon after the first prompt, so"
+    )?;
     writeln!(f, ";; git status stays fresh + instant fleet-wide. `seki")?;
-    writeln!(f, ";; prompt` falls back to a live fork whenever it's absent.")?;
-    writeln!(f, "(defenv :name \"SEKI_DAEMON\" :value \"auto\" :export #t)")?;
+    writeln!(
+        f,
+        ";; prompt` falls back to a live fork whenever it's absent."
+    )?;
+    writeln!(
+        f,
+        "(defenv :name \"SEKI_DAEMON\" :value \"auto\" :export #t)"
+    )?;
     writeln!(f, "(defprompt")?;
     writeln!(
         f,
@@ -129,10 +138,7 @@ fn render_zsh(f: &mut fmt::Formatter<'_>, bin: &str) -> fmt::Result {
 
 fn render_fish(f: &mut fmt::Formatter<'_>, bin: &str) -> fmt::Result {
     writeln!(f, "# seki :: prompt integration (auto-generated)")?;
-    writeln!(
-        f,
-        "# Add to your config.fish:  {bin} init fish | source"
-    )?;
+    writeln!(f, "# Add to your config.fish:  {bin} init fish | source")?;
     writeln!(f, "function fish_prompt")?;
     writeln!(f, "    set -l _seki_status $status")?;
     writeln!(
@@ -144,7 +150,10 @@ fn render_fish(f: &mut fmt::Formatter<'_>, bin: &str) -> fmt::Result {
 
 fn render_nu(f: &mut fmt::Formatter<'_>, bin: &str) -> fmt::Result {
     writeln!(f, "# seki :: prompt integration (auto-generated)")?;
-    writeln!(f, "# Add to your config.nu:  source ({bin} init nu | save -f /tmp/seki-init.nu; '/tmp/seki-init.nu')")?;
+    writeln!(
+        f,
+        "# Add to your config.nu:  source ({bin} init nu | save -f /tmp/seki-init.nu; '/tmp/seki-init.nu')"
+    )?;
     writeln!(f, "$env.PROMPT_COMMAND = {{|| ")?;
     writeln!(
         f,
@@ -168,10 +177,7 @@ mod tests {
         assert!(s.contains("(defprompt"), "missing defprompt form: {s}");
         assert!(s.contains(":command"), "missing :command slot: {s}");
         assert!(s.contains("seki prompt"), "missing renderer cmd: {s}");
-        assert!(
-            s.contains("--shell=frostmourne"),
-            "missing shell hint: {s}"
-        );
+        assert!(s.contains("--shell=frostmourne"), "missing shell hint: {s}");
     }
 
     #[test]

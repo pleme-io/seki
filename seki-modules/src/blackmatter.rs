@@ -66,10 +66,9 @@ impl Module for BlackmatterModule {
             "count" => Some(count.to_string()),
             _ => None,
         });
-        Ok(Some(Segment::new("blackmatter").push(StyledFragment::new(
-            text,
-            self.cfg.style.resolve(),
-        ))))
+        Ok(Some(
+            Segment::new("blackmatter").push(StyledFragment::new(text, self.cfg.style.resolve())),
+        ))
     }
 }
 
@@ -114,11 +113,7 @@ pub fn resolve_count(
     }
     let xdg = xdg_config_home?;
     let count = count_known_dirs(xdg.to_path_buf(), known_components);
-    if count == 0 {
-        None
-    } else {
-        Some(count)
-    }
+    if count == 0 { None } else { Some(count) }
 }
 
 /// Count directories under `root` whose name matches an entry in

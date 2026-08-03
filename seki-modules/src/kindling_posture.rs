@@ -123,7 +123,10 @@ mod tests {
 
     fn tmp_dir(name: &str) -> PathBuf {
         let mut p = std::env::temp_dir();
-        p.push(format!("seki-kindling-posture-{name}-{}", std::process::id()));
+        p.push(format!(
+            "seki-kindling-posture-{name}-{}",
+            std::process::id()
+        ));
         let _ = fs::remove_dir_all(&p);
         fs::create_dir_all(&p).unwrap();
         p

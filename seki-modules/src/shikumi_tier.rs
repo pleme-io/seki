@@ -15,8 +15,7 @@
 //! Env-var read only; bypasses `scan_timeout_ms`.
 
 use seki_core::{
-    Module, RenderContext, Segment, SekiResult,
-    config::shikumi_tier::ShikumiTierConfig,
+    Module, RenderContext, Segment, SekiResult, config::shikumi_tier::ShikumiTierConfig,
     segment::StyledFragment,
 };
 
@@ -55,10 +54,9 @@ impl Module for ShikumiTierModule {
             })
             .collect();
         let text = rendered.join(&self.cfg.separator);
-        Ok(Some(Segment::new("shikumi_tier").push(StyledFragment::new(
-            text,
-            self.cfg.style.resolve(),
-        ))))
+        Ok(Some(
+            Segment::new("shikumi_tier").push(StyledFragment::new(text, self.cfg.style.resolve())),
+        ))
     }
 }
 
@@ -98,7 +96,11 @@ mod tests {
             ("MADO_TIER", "bare"),
             ("KENSHI_TIER", "default"),
         ]));
-        let apps = vec!["mado".to_string(), "kenshi".to_string(), "tatara".to_string()];
+        let apps = vec![
+            "mado".to_string(),
+            "kenshi".to_string(),
+            "tatara".to_string(),
+        ];
         let hits = scan_env(&apps, lookup);
         assert_eq!(hits.len(), 2);
         assert_eq!(hits[0], ("mado".to_string(), "bare".to_string()));
@@ -118,18 +120,25 @@ mod tests {
         let lookup = stub_lookup(HashMap::from([("ZOEKT_MCP_TIER", "discovered")]));
         let apps = vec!["zoekt-mcp".to_string()];
         let hits = scan_env(&apps, lookup);
-        assert_eq!(hits, vec![("zoekt-mcp".to_string(), "discovered".to_string())]);
+        assert_eq!(
+            hits,
+            vec![("zoekt-mcp".to_string(), "discovered".to_string())]
+        );
     }
 
     #[test]
     fn render_format_app_and_tier_substitution() {
-        let out = seki_core::format::render_vars("[$app:$tier]($style)", &[("app", "mado"), ("tier", "bare")]);
+        let out = seki_core::format::render_vars(
+            "[$app:$tier]($style)",
+            &[("app", "mado"), ("tier", "bare")],
+        );
         assert_eq!(out, "mado:bare");
     }
 
     #[test]
     fn render_format_handles_plain_template() {
-        let out = seki_core::format::render_vars("$app=$tier", &[("app", "tatara"), ("tier", "default")]);
+        let out =
+            seki_core::format::render_vars("$app=$tier", &[("app", "tatara"), ("tier", "default")]);
         assert_eq!(out, "tatara=default");
     }
 }

@@ -35,7 +35,9 @@ impl Module for EnvVarModule {
                 continue;
             }
             let var = entry.variable.as_deref().unwrap_or(key);
-            let value = std::env::var(var).ok().unwrap_or_else(|| entry.default.clone());
+            let value = std::env::var(var)
+                .ok()
+                .unwrap_or_else(|| entry.default.clone());
             if value.is_empty() {
                 continue;
             }

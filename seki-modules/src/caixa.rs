@@ -23,9 +23,7 @@
 //! scan_timeout_ms.
 
 use seki_core::{
-    Module, RenderContext, Segment, SekiResult,
-    config::caixa::CaixaConfig,
-    segment::StyledFragment,
+    Module, RenderContext, Segment, SekiResult, config::caixa::CaixaConfig, segment::StyledFragment,
 };
 use std::path::{Path, PathBuf};
 
@@ -70,7 +68,13 @@ impl Module for CaixaModule {
 }
 
 /// The five typed caixa kinds — keep in sync with caixa-author docs.
-const CAIXA_KINDS: &[&str] = &["Servico", "Biblioteca", "Aplicacao", "Supervisor", "Binario"];
+const CAIXA_KINDS: &[&str] = &[
+    "Servico",
+    "Biblioteca",
+    "Aplicacao",
+    "Supervisor",
+    "Binario",
+];
 
 /// Walk up from `start` looking for a `caixa.lisp`. Stops at the
 /// filesystem root or at the parent of a `.git` directory (the

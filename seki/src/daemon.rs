@@ -264,7 +264,10 @@ fn is_output_irrelevant(path: &Path, root: &Path) -> bool {
     }
     // Strictly BELOW .git/objects — never the directory node itself.
     matches!(
-        comps.next().map(|c| c.as_os_str().to_string_lossy().into_owned()).as_deref(),
+        comps
+            .next()
+            .map(|c| c.as_os_str().to_string_lossy().into_owned())
+            .as_deref(),
         Some("objects" | "lfs")
     ) && comps.next().is_some()
 }
@@ -717,7 +720,11 @@ mod tests {
     fn a_generation_current_value_still_expires() {
         let agreed = (9u64, 9u64);
         assert!(
-            is_servable(agreed.0, agreed.1, REVALIDATE_AFTER - Duration::from_millis(1)),
+            is_servable(
+                agreed.0,
+                agreed.1,
+                REVALIDATE_AFTER - Duration::from_millis(1)
+            ),
             "inside the window a matching generation is served — the cache still earns its keep"
         );
         assert!(
@@ -827,7 +834,8 @@ mod tests {
         let roots = [root("/repo")];
         // A gc/fetch writing packfiles cannot change status output.
         assert!(
-            classify_events(&[plain(&["/repo/.git/objects/pack/pack-abc.pack"])], &roots).is_empty(),
+            classify_events(&[plain(&["/repo/.git/objects/pack/pack-abc.pack"])], &roots)
+                .is_empty(),
             ".git/objects churn must not cost a recompute"
         );
         // Everything that CAN change the output must still get through.

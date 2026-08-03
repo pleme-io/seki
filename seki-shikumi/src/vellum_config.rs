@@ -137,7 +137,10 @@ mod tests {
         assert!(c.character.enabled);
         assert!(c.git_branch.enabled);
         assert!(!c.rust.enabled);
-        assert_eq!(c.prompt_order.first().map(String::as_str), Some("nix_shell"));
+        assert_eq!(
+            c.prompt_order.first().map(String::as_str),
+            Some("nix_shell")
+        );
         assert_eq!(c.prompt_order.last().map(String::as_str), Some("character"));
     }
 }

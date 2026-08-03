@@ -23,6 +23,7 @@ pub mod env_var;
 pub mod fleet_node;
 pub mod git_branch;
 pub mod git_status;
+pub mod gitops;
 pub mod hostname;
 pub mod ishou_theme;
 pub mod kasou_vm;
@@ -52,12 +53,15 @@ pub fn default_registry(cfg: &SekiConfig) -> ModuleRegistry {
     }
     if cfg.git_status.enabled {
         reg.register(git_status::GitStatusModule::new(cfg.git_status.clone()));
+        reg.register(gitops::GitopsModule::new(cfg.gitops.clone()));
     }
     if cfg.hostname.enabled {
         reg.register(hostname::HostnameModule::new(cfg.hostname.clone()));
     }
     if cfg.cmd_duration.enabled {
-        reg.register(cmd_duration::CmdDurationModule::new(cfg.cmd_duration.clone()));
+        reg.register(cmd_duration::CmdDurationModule::new(
+            cfg.cmd_duration.clone(),
+        ));
     }
     if cfg.rust.enabled {
         reg.register(rust::RustModule::new(cfg.rust.clone()));
@@ -73,7 +77,9 @@ pub fn default_registry(cfg: &SekiConfig) -> ModuleRegistry {
     }
     // ── Pleme-io-native segments (Tier 1) ──────────────────────
     if cfg.shikumi_tier.enabled {
-        reg.register(shikumi_tier::ShikumiTierModule::new(cfg.shikumi_tier.clone()));
+        reg.register(shikumi_tier::ShikumiTierModule::new(
+            cfg.shikumi_tier.clone(),
+        ));
     }
     if cfg.caixa.enabled {
         reg.register(caixa::CaixaModule::new(cfg.caixa.clone()));
@@ -119,7 +125,9 @@ pub fn default_registry(cfg: &SekiConfig) -> ModuleRegistry {
         ));
     }
     if cfg.mado_session.enabled {
-        reg.register(mado_session::MadoSessionModule::new(cfg.mado_session.clone()));
+        reg.register(mado_session::MadoSessionModule::new(
+            cfg.mado_session.clone(),
+        ));
     }
     // ── Pleme-io-native segments (Tier 4 — substrate-themed) ───
     if cfg.ishou_theme.enabled {

@@ -186,7 +186,10 @@ mod tests {
     #[test]
     fn single_var_strips_markup() {
         // custom / env_var / hostname / cmd_duration shape.
-        assert_eq!(render_one("[· $output]($style) ", "output", "abcdef"), "· abcdef ");
+        assert_eq!(
+            render_one("[· $output]($style) ", "output", "abcdef"),
+            "· abcdef "
+        );
         assert_eq!(render_one("[$duration]($style) ", "duration", "5s"), "5s ");
         assert_eq!(
             render_one("[$hostname](dimmed $style) · ", "hostname", "rio"),
@@ -207,7 +210,10 @@ mod tests {
     fn multi_var_lookup() {
         // tear shape: session + pane.
         assert_eq!(
-            render_vars("[~ $session·$pane]($style) ", &[("session", "main"), ("pane", "ab")]),
+            render_vars(
+                "[~ $session·$pane]($style) ",
+                &[("session", "main"), ("pane", "ab")]
+            ),
             "~ main·ab "
         );
     }
@@ -217,7 +223,10 @@ mod tests {
         // git_status ahead glyph: `⇡${count}`.
         assert_eq!(render_one("⇡${count}", "count", "3"), "⇡3");
         assert_eq!(
-            render_vars("⇕${ahead_count}⇣${behind_count}", &[("ahead_count", "2"), ("behind_count", "1")]),
+            render_vars(
+                "⇕${ahead_count}⇣${behind_count}",
+                &[("ahead_count", "2"), ("behind_count", "1")]
+            ),
             "⇕2⇣1"
         );
     }
@@ -234,7 +243,10 @@ mod tests {
         // nix_shell shape: `via [$symbol$state( \($name\))]($style) `.
         let fmt = "via [$symbol$state( \\($name\\))]($style) ";
         assert_eq!(
-            render_vars(fmt, &[("symbol", "❄ "), ("state", "pure"), ("name", "devshell")]),
+            render_vars(
+                fmt,
+                &[("symbol", "❄ "), ("state", "pure"), ("name", "devshell")]
+            ),
             "via ❄ pure (devshell) "
         );
     }
@@ -272,10 +284,7 @@ mod tests {
     #[test]
     fn nested_groups() {
         // A conditional inside a text group, both populated.
-        assert_eq!(
-            render_vars("[$a($b)]", &[("a", "x"), ("b", "y")]),
-            "xy"
-        );
+        assert_eq!(render_vars("[$a($b)]", &[("a", "x"), ("b", "y")]), "xy");
         // Inner conditional empty → dropped, text group keeps `$a`.
         assert_eq!(render_vars("[$a($b)]", &[("a", "x"), ("b", "")]), "x");
     }

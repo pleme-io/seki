@@ -14,8 +14,7 @@
 //! Gracefully absent on failure.
 
 use seki_core::{
-    Module, RenderContext, Segment, SekiResult,
-    config::tatara_workload::TataraWorkloadConfig,
+    Module, RenderContext, Segment, SekiResult, config::tatara_workload::TataraWorkloadConfig,
     segment::StyledFragment,
 };
 use std::process::{Command, Stdio};
@@ -219,7 +218,8 @@ mod tests {
 
     #[test]
     fn render_format_count_substitution() {
-        let out = seki_core::format::render_vars("alloc=$count", &[("count", "9"), ("status", "_")]);
+        let out =
+            seki_core::format::render_vars("alloc=$count", &[("count", "9"), ("status", "_")]);
         assert_eq!(out, "alloc=9");
     }
 

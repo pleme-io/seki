@@ -16,9 +16,7 @@
 //! no network, no filesystem.
 
 use seki_core::{
-    Module, RenderContext, Segment, SekiResult,
-    config::tear::TearConfig,
-    segment::StyledFragment,
+    Module, RenderContext, Segment, SekiResult, config::tear::TearConfig, segment::StyledFragment,
 };
 
 pub struct TearModule {

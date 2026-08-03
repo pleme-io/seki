@@ -14,8 +14,7 @@
 //! `command_timeout_ms`. Gracefully absent on any failure.
 
 use seki_core::{
-    Module, RenderContext, Segment, SekiResult,
-    config::mado_session::MadoSessionConfig,
+    Module, RenderContext, Segment, SekiResult, config::mado_session::MadoSessionConfig,
     segment::StyledFragment,
 };
 use std::io::{Read, Write};
@@ -106,11 +105,7 @@ impl Module for MadoSessionModule {
 
 /// Resolve the configured socket path. `"$env"` reads `MADO_SOCKET`
 /// (falling back to `<home>/.local/share/mado/mado.sock`).
-pub fn resolve_socket_path<F>(
-    socket_path: &str,
-    lookup: F,
-    home: Option<&Path>,
-) -> Option<PathBuf>
+pub fn resolve_socket_path<F>(socket_path: &str, lookup: F, home: Option<&Path>) -> Option<PathBuf>
 where
     F: Fn(&str) -> Option<String>,
 {
@@ -320,11 +315,8 @@ mod tests {
 
     #[test]
     fn render_format_default_template() {
-        let out = seki_core::format::render_one(
-            "[$status]($style)",
-            "status",
-            "mado: 2 sess, 60 fps",
-        );
+        let out =
+            seki_core::format::render_one("[$status]($style)", "status", "mado: 2 sess, 60 fps");
         assert_eq!(out, "mado: 2 sess, 60 fps");
     }
 

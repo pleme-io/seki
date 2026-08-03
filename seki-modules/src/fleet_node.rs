@@ -18,8 +18,7 @@
 //! path).
 
 use seki_core::{
-    Module, RenderContext, Segment, SekiResult,
-    config::fleet_node::FleetNodeConfig,
+    Module, RenderContext, Segment, SekiResult, config::fleet_node::FleetNodeConfig,
     segment::StyledFragment,
 };
 use serde::Deserialize;
