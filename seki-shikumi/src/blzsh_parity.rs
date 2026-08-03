@@ -173,6 +173,9 @@ pub fn blzsh_parity_config() -> SekiConfig {
         // reports, and it renders nothing while healthy.
         gitops: GitopsConfig::default(),
         git_status: GitStatusConfig {
+            // blzsh had no "no upstream" indicator; `⇡?` is additive and
+            // only renders where blzsh rendered a misleading nothing.
+            no_upstream: "⇡?".to_owned(),
             enabled: true,
             format: "[$all_status$ahead_behind]($style) ".to_owned(),
             style: StyleSpec::new("bold #EBCB8B"),

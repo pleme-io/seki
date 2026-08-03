@@ -27,6 +27,11 @@ pub struct GitStatusConfig {
     pub staged: String,
     pub untracked: String,
     pub up_to_date: String,
+    /// Rendered when the branch has NO upstream — distinct from
+    /// `up_to_date`, which claims agreement with a remote that does not
+    /// exist. Default `⇡?`: the ahead glyph (work only you have) plus a
+    /// question mark (nowhere to send it).
+    pub no_upstream: String,
     /// Symbol shown when no other status applies; convenience for
     /// the M1 coarse classifier — starship doesn't model this
     /// explicitly. Falls back to `up_to_date` when empty.
@@ -52,6 +57,7 @@ impl Default for GitStatusConfig {
             staged: "+".to_owned(),
             untracked: "?".to_owned(),
             up_to_date: String::new(),
+            no_upstream: "⇡?".to_owned(),
             clean_symbol: "✓".to_owned(),
             prefix: "[".to_owned(),
             suffix: "] ".to_owned(),
@@ -63,6 +69,7 @@ impl GitStatusConfig {
     pub fn bare() -> Self {
         Self {
             enabled: false,
+            no_upstream: String::new(),
             format: String::new(),
             style: StyleSpec::default(),
             stashed: String::new(),

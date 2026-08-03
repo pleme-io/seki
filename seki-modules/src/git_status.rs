@@ -49,7 +49,7 @@ impl GitStatusModule {
 }
 
 /// Typed working-tree status — one count per category.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GitStatus {
     pub staged: u32,
     pub modified: u32,
@@ -60,12 +60,61 @@ pub struct GitStatus {
     pub stashed: u32,
     pub ahead: u32,
     pub behind: u32,
+    /// Whether git reported a `# branch.ab` header at all.
+    ///
+    /// ── ★ NO UPSTREAM IS NOT "IN SYNC" ──────────────────────────────
+    /// `--porcelain=v2 --branch` OMITS that header entirely when the
+    /// branch has no upstream, so `ahead`/`behind` simply stay 0 — and a
+    /// local branch that has never been pushed rendered exactly like one
+    /// perfectly in sync. Silent, and wrong in the direction that costs
+    /// you work: it is the unpushed branch you need told about.
+    ///
+    /// Not serialized on the wire (see `to_wire`/`from_wire`): the daemon
+    /// protocol is a fixed nine-field shape, and widening it would break
+    /// every already-running daemon mid-upgrade. The renderer reads this
+    /// only on the in-process path; the wire path defaults it to `true`,
+    /// which preserves today's behavior there rather than inventing a
+    /// second answer.
+    pub has_upstream: bool,
+}
+
+impl Default for GitStatus {
+    /// All counts zero and an upstream PRESENT — the ordinary repo.
+    ///
+    /// `has_upstream` is the one field whose default is not its zero
+    /// value, deliberately: the absence of an upstream is a real finding
+    /// that only [`parse_status`] can observe (git omits `# branch.ab`),
+    /// so the parser starts pessimistic and sets it true on evidence.
+    /// Defaulting it to `false` here would make every constructed-by-hand
+    /// `GitStatus` — including every test fixture — silently claim a
+    /// missing upstream.
+    fn default() -> Self {
+        Self {
+            staged: 0,
+            modified: 0,
+            deleted: 0,
+            renamed: 0,
+            untracked: 0,
+            conflicted: 0,
+            stashed: 0,
+            ahead: 0,
+            behind: 0,
+            has_upstream: true,
+        }
+    }
 }
 
 impl GitStatus {
-    /// Nothing to show: a pristine, up-to-date, stash-free tree.
+    /// Nothing to show: a pristine, up-to-date, stash-free tree WITH an
+    /// upstream to be up to date with.
+    ///
+    /// A branch with no upstream is deliberately NOT clean. It renders
+    /// like a synced branch otherwise, and the unpushed branch is exactly
+    /// the one worth telling the operator about — the failure costs work,
+    /// not just accuracy.
     pub fn is_clean(&self) -> bool {
-        self.staged == 0
+        self.has_upstream
+            && self.staged == 0
             && self.modified == 0
             && self.deleted == 0
             && self.renamed == 0
@@ -122,6 +171,9 @@ impl GitStatus {
             stashed: nums[6],
             ahead: nums[7],
             behind: nums[8],
+            // The wire form carries nine fields and cannot express this;
+            // `true` keeps the daemon path exactly as it was.
+            has_upstream: true,
         })
     }
 }
@@ -240,6 +292,14 @@ fn build_all_status(cfg: &GitStatusConfig, st: &GitStatus) -> String {
 /// Resolve the `$ahead_behind` token: `diverged` when both, else the
 /// one-sided glyph, else `up_to_date`.
 fn build_ahead_behind(cfg: &GitStatusConfig, st: &GitStatus) -> String {
+    // ── ★ NO UPSTREAM FALLS THROUGH TO `up_to_date` OTHERWISE ───────────
+    // git omits `# branch.ab` when there is no upstream, so ahead/behind
+    // are both 0 and the final `else` below renders "up to date" for a
+    // branch that has nowhere to be up to date WITH. Checked first,
+    // because every later arm reads counts that were never populated.
+    if !st.has_upstream {
+        return cfg.no_upstream.clone();
+    }
     if st.ahead > 0 && st.behind > 0 {
         cfg.diverged
             .replace("${ahead_count}", &st.ahead.to_string())
@@ -271,13 +331,22 @@ fn present(symbol: &str, count: u32) -> String {
 /// sides: a staged-and-then-re-modified file lights both indicators,
 /// which is the honest signal.
 pub fn parse_porcelain_v2(out: &str) -> GitStatus {
-    let mut st = GitStatus::default();
+    // Pessimistic on the one field git signals by OMISSION: no
+    // `# branch.ab` header means no upstream, so we cannot start from
+    // `true` and wait to be told otherwise — we would never be told.
+    let mut st = GitStatus {
+        has_upstream: false,
+        ..GitStatus::default()
+    };
     for line in out.lines() {
         let mut fields = line.split(' ');
         match fields.next() {
             Some("#") => {
                 // Header. We only care about `# branch.ab +A -B`.
                 if fields.next() == Some("branch.ab") {
+                    // The header exists, so an upstream exists. Its absence
+                    // is the signal; presence is what we record here.
+                    st.has_upstream = true;
                     for tok in fields {
                         if let Some(a) = tok.strip_prefix('+') {
                             st.ahead = a.parse().unwrap_or(0);
@@ -621,6 +690,54 @@ u UU N... 1 2 3 h1 h2 h3 both.rs
         assert_eq!(m.render_body(&GitStatus::default()), "✓ ");
     }
 
+    /// ── ★ NO UPSTREAM MUST NOT READ AS IN-SYNC ─────────────────────
+    /// `--porcelain=v2 --branch` OMITS `# branch.ab` when the branch has
+    /// no upstream, so ahead/behind stay 0 and the old `else` arm rendered
+    /// `up_to_date`. A local branch never pushed looked exactly like one
+    /// perfectly in sync — wrong in the direction that costs work.
+    ///
+    /// Red run: drop the `!st.has_upstream` early return in
+    /// `build_ahead_behind` and this renders the up-to-date arm instead.
+    #[test]
+    fn a_branch_with_no_upstream_is_not_rendered_as_up_to_date() {
+        let mut cfg = companion_cfg();
+        cfg.up_to_date = "SYNCED".to_owned();
+        cfg.no_upstream = "NOUP".to_owned();
+        let m = GitStatusModule::new(cfg);
+        let st = GitStatus {
+            has_upstream: false,
+            modified: 1,
+            ..GitStatus::default()
+        };
+        let body = m.render_body(&st);
+        assert!(
+            body.contains("NOUP"),
+            "expected the no-upstream marker: {body}"
+        );
+        assert!(!body.contains("SYNCED"), "must not claim sync: {body}");
+    }
+
+    /// The honest half: a real upstream with zero divergence still renders
+    /// the up-to-date arm, so the fix cannot pass by never reporting sync.
+    #[test]
+    fn a_real_upstream_at_zero_divergence_still_reads_as_up_to_date() {
+        let mut cfg = companion_cfg();
+        cfg.up_to_date = "SYNCED".to_owned();
+        cfg.no_upstream = "NOUP".to_owned();
+        let m = GitStatusModule::new(cfg);
+        // One modified file, so the segment renders at all — a fully
+        // clean AND synced tree deliberately renders nothing, which would
+        // make this assertion vacuous.
+        let st = GitStatus {
+            has_upstream: true,
+            modified: 1,
+            ..GitStatus::default()
+        };
+        let body = m.render_body(&st);
+        assert!(body.contains("SYNCED"), "{body}");
+        assert!(!body.contains("NOUP"), "{body}");
+    }
+
     #[test]
     fn wire_roundtrips() {
         let st = GitStatus {
@@ -633,6 +750,10 @@ u UU N... 1 2 3 h1 h2 h3 both.rs
             stashed: 7,
             ahead: 8,
             behind: 9,
+            // The wire form carries nine fields; `from_wire` defaults this
+            // to true, so the round-trip fixture must start there or it
+            // would assert a lossy encoding is lossless.
+            has_upstream: true,
         };
         assert_eq!(GitStatus::from_wire(&st.to_wire()), Some(st));
         assert_eq!(GitStatus::default().to_wire(), "0 0 0 0 0 0 0 0 0");
