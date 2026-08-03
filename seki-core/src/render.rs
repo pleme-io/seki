@@ -38,6 +38,10 @@ pub fn render_prompt(
 ) -> SekiResult<RenderedPrompt> {
     let mut segments = Vec::with_capacity(cfg.prompt_order.len());
     let mut raw = String::new();
+    // The last character a HUMAN sees, tracked alongside `raw` because
+    // `raw` is ANSI-interleaved and cannot answer "did that end in a
+    // space?". Only separation decisions read this.
+    let mut last_visible: Option<char> = None;
 
     for name in &cfg.prompt_order {
         if name == "character" {
@@ -53,8 +57,28 @@ pub fn render_prompt(
         }
         match module.render(ctx)? {
             Some(segment) if !segment.is_empty() => {
+                // Honour a declared separation request, but only when the
+                // output does not already end in whitespace — so it never
+                // double-spaces and never touches deliberate adjacency.
+                //
+                // ── ★ THE CHECK IS ON VISIBLE TEXT, NOT ON `raw` ────────
+                // First written as `raw.ends_with(' ')`, which rendered
+                // `main!?  via` — two spaces. `raw` carries ANSI escapes,
+                // so after a styled fragment it ends in `\x1b[0m`, never
+                // in the space the reader can see. The idempotence guard
+                // was therefore always true and the space always added.
+                // Caught by looking at the prompt; no test compares
+                // adjacent segments' spacing.
+                if segment.needs_leading_space
+                    && last_visible.is_some_and(|c: char| !c.is_whitespace())
+                {
+                    raw.push(' ');
+                }
                 for fragment in &segment.fragments {
                     raw.push_str(&apply(&fragment.text, &fragment.style, ctx.enable_colors));
+                    if let Some(c) = fragment.text.chars().next_back() {
+                        last_visible = Some(c);
+                    }
                 }
                 segments.push(segment);
             }
@@ -65,6 +89,13 @@ pub fn render_prompt(
     if cfg.character.enabled {
         let (text, style) = render_character(&cfg.character, ctx.last_exit_code);
         if !text.is_empty() {
+            // Same rule as a declared segment: the character must not run
+            // into the segment before it. `main❄` in any clean non-Rust
+            // repo — git_branch supplies no trailing space and, without
+            // git_status or rust between them, nothing else did either.
+            if last_visible.is_some_and(|c: char| !c.is_whitespace()) {
+                raw.push(' ');
+            }
             raw.push_str(&apply(&text, &style, ctx.enable_colors));
             // Trailing space per starship's `"$symbol "` default.
             raw.push(' ');

@@ -24,6 +24,7 @@ pub mod format;
 pub mod init;
 pub mod module;
 pub mod palette;
+pub mod project;
 pub mod render;
 pub mod segment;
 pub mod style;

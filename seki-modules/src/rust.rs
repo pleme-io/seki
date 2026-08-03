@@ -41,38 +41,69 @@ impl Module for RustModule {
         if !detected(&ctx.cwd, &self.cfg.detect_files, &self.cfg.detect_folders) {
             return Ok(None);
         }
+        // ── ★ A BARE SYMBOL IS A READING, NOT A FABRICATION ─────────────
+        // The `text.is_empty()` guard that used to sit below could never
+        // fire — `text` already held prefix + symbol ("via ⊿") by then.
+        // So I replaced it with a gate on `read_toolchain_channel`
+        // returning `Some`, reasoning that `via ⊿` with no version was
+        // the same "presented as measured, never measured" defect as
+        // `stable`.
+        //
+        // Two tests went red and they were right. The symbol means "this
+        // is a Rust project", which IS measured — `detected` just proved
+        // it — and unlike `stable` it asserts no version. Suppressing it
+        // deletes a true signal to avoid a false one that is not there.
+        //
+        // The distinction worth keeping: `stable` was a VALUE nothing
+        // declared; a bare symbol is a CATEGORY the filesystem declares.
+        // Only the first is an invention. The dead guard is gone rather
+        // than repaired, because there is nothing for it to catch.
         let mut text = String::new();
         text.push_str(&self.cfg.prefix);
         text.push_str(&self.cfg.symbol);
         if let Some(channel) = read_toolchain_channel(&ctx.cwd) {
             text.push_str(&channel);
         }
-        // The symbol carries its own trailing space so `🦀 1.89.0`
-        // reads right; with no channel that space would dangle in
-        // front of the suffix.
+        // The symbol carries its own trailing space so `⊿ 1.89.0` reads
+        // right; with no channel that space would dangle before the suffix.
         let mut text = text.trim_end().to_owned();
-        if text.is_empty() {
-            return Ok(None);
-        }
         text.push_str(&self.cfg.suffix);
         Ok(Some(
-            Segment::new("rust").push(StyledFragment::new(text, self.cfg.style.resolve())),
+            Segment::new("rust")
+                .push(StyledFragment::new(text, self.cfg.style.resolve()))
+                // `git_branch` does not always end in a space (it leans on
+                // `git_status`, which is absent in a clean repo), so this
+                // segment asks not to be run into: `mainvia ⊿` -> `main via ⊿`.
+                .with_leading_space(),
         ))
     }
 }
 
+/// Is `cwd` inside a Rust project?
+///
+/// ── ★ THE WALK IS THE POINT ─────────────────────────────────────────────
+/// This checked `cwd` alone, which made it the THIRD instance of the
+/// blind spot behind the `stable` bug — and the one that hid the other
+/// two. Standing in `seki/seki-modules/src` there is no `Cargo.toml`, so
+/// the whole segment returned `None` before the toolchain lookup ran; the
+/// walk added to `read_toolchain_channel` was unreachable from a
+/// subdirectory, which is where a shell spends its life.
+///
+/// Fixing the reader without fixing the detector produces a fix that
+/// passes its tests and changes nothing on screen. Both walk now.
 pub fn detected(cwd: &Path, files: &[String], folders: &[String]) -> bool {
-    for f in files {
-        if cwd.join(f).is_file() {
+    let mut cur = cwd;
+    loop {
+        if files.iter().any(|f| cur.join(f).is_file())
+            || folders.iter().any(|d| cur.join(d).is_dir())
+        {
             return true;
         }
-    }
-    for d in folders {
-        if cwd.join(d).is_dir() {
-            return true;
+        match cur.parent() {
+            Some(p) => cur = p,
+            None => return false,
         }
     }
-    false
 }
 
 /// Resolve the toolchain channel the way rustup resolves an override:
@@ -84,19 +115,23 @@ pub fn detected(cwd: &Path, files: &[String], folders: &[String]) -> bool {
 /// of a workspace whose ROOT carries the pin resolved to nothing, and
 /// the caller's fallback then invented an answer. The walk is what
 /// makes the pin visible from where the operator actually stands.
+/// The channel from the nearest `rust-toolchain.toml` at or above `cwd`.
+///
+/// The walk lives in `seki_core::project` because `nix_flake_drift` needed
+/// the identical thing and had gone without it — silent in every
+/// subdirectory of every flake repo. Two copies of walk-up-to-a-marker,
+/// one right and one missing, is where the helper earns its keep.
 pub fn read_toolchain_channel(cwd: &Path) -> Option<String> {
-    let mut cur: &Path = cwd;
-    loop {
-        if let Some(channel) = read_toolchain_channel_in(cur) {
-            return Some(channel);
-        }
-        cur = cur.parent()?;
-    }
+    // BOTH spellings, one walk. Searching for `rust-toolchain.toml` alone
+    // made the extension-less `rust-toolchain` invisible — a regression
+    // this repo's own test caught on the first build after the extraction.
+    let root = seki_core::project::find_root_containing_any(
+        cwd,
+        &["rust-toolchain.toml", "rust-toolchain"],
+    )?;
+    read_toolchain_channel_in(&root)
 }
 
-/// Read a channel from the toolchain files of ONE directory, without
-/// walking. `rust-toolchain.toml` wins over `rust-toolchain` per
-/// rustup's own precedence.
 pub fn read_toolchain_channel_in(dir: &Path) -> Option<String> {
     let toml_path = dir.join("rust-toolchain.toml");
     if let Ok(content) = fs::read_to_string(&toml_path) {

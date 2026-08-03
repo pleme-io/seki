@@ -62,10 +62,23 @@ impl Module for NixFlakeDriftModule {
                 return Ok(Some(build_segment(&self.cfg, entry.count, false)));
             }
         }
-        if !ctx.cwd.join("flake.nix").is_file() {
+        // ── ★ THE ROOT, NOT THE CWD ────────────────────────────────────
+        // This was `!ctx.cwd.join("flake.nix").is_file()`, which is the
+        // same blind spot that made the `rust` segment print `stable`:
+        // it only ever looked in the directory the shell happened to be
+        // in. Every subdirectory of every flake repo in the fleet — which
+        // is nearly every directory the operator stands in — rendered
+        // nothing, and nothing is indistinguishable from "no drift".
+        //
+        // The walk returns the ROOT rather than a bool because the probe
+        // below runs `nix flake metadata` in it. A bool would have fixed
+        // detection and left the command running where there is no
+        // flake.nix, turning a silent segment into a failing one.
+        let Some(flake_root) = seki_core::project::find_root_containing(&ctx.cwd, "flake.nix")
+        else {
             return Ok(None);
-        }
-        let probe = probe_drift(&self.cfg, &ctx.cwd);
+        };
+        let probe = probe_drift(&self.cfg, &flake_root);
         match probe {
             Some(count) => {
                 if let Ok(mut g) = self.cache.lock() {
