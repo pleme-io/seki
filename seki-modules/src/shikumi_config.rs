@@ -184,13 +184,6 @@ fn probe_config_show(app: &str, tier: &str, timeout_ms: u64) -> bool {
 /// Build the cache map view from a snapshot — useful for testing
 /// (kept in case future tests need it; not used in render path).
 #[cfg(test)]
-fn cache_view(snapshot: &[CachedProbe]) -> std::collections::HashMap<(String, String), Instant> {
-    snapshot
-        .iter()
-        .map(|c| ((c.app.clone(), c.tier.clone()), c.captured_at))
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -260,25 +253,15 @@ mod tests {
         assert!(!ok);
     }
 
-    #[test]
-    fn cache_view_aggregates() {
-        // Tiny smoke test that the helper aggregates correctly —
-        // future test surface for cache-hit logic.
-        let now = Instant::now();
-        let snap = vec![
-            CachedProbe {
-                app: "mado".to_owned(),
-                tier: "bare".to_owned(),
-                captured_at: now,
-            },
-            CachedProbe {
-                app: "kenshi".to_owned(),
-                tier: "default".to_owned(),
-                captured_at: now,
-            },
-        ];
-        let view = cache_view(&snap);
-        assert_eq!(view.len(), 2);
-        assert!(view.contains_key(&("mado".to_owned(), "bare".to_owned())));
-    }
+    // ── ★ A TEST OF DEAD CODE IS WORSE THAN NO TEST ──────────────────
+    // `cache_view_aggregates` and the `cache_view` helper it exercised are
+    // both gone. The helper was defined once and called from exactly one
+    // place: that test. It never ran in the render path, and the module's
+    // own comment said so ("not used in render path").
+    //
+    // So the test asserted a property of `HashMap` and nothing about this
+    // segment, while adding one to the passing count and reading, to
+    // anyone scanning the file, like cache coverage. MODULARIZE-DON'T-
+    // DELETE governs retiring a CONFIGURED feature; genuinely-orphan code
+    // is its stated exception, and this was orphan from birth.
 }

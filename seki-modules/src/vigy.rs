@@ -123,7 +123,27 @@ pub fn format_hz(hz: f64) -> String {
 /// small (<2 KiB), so we read once into a Vec and parse.
 fn probe_vigy(host: &str, port: u16, path: &str, timeout_ms: u64) -> Option<(u32, f64)> {
     let timeout = Duration::from_millis(timeout_ms);
-    let addr = (host, port).to_socket_addrs().ok()?.next()?;
+    // ── ★ RESOLUTION RUNS BEFORE ANY DEADLINE IS ARMED ─────────────────
+    // `to_socket_addrs()` is a blocking `getaddrinfo` with NO timeout, and
+    // it used to run unconditionally — so `probe_timeout_ms` bounded only
+    // the connect and read that follow it. A machine with an unreachable
+    // DNS server blocks here, before the prompt draws, and the configured
+    // budget never applies.
+    //
+    // The default host is `127.0.0.1`: an IP literal, for which resolution
+    // is pure waste as well as a hazard. Parsing it directly skips
+    // `getaddrinfo` entirely, which removes the hazard completely for the
+    // shipped configuration.
+    //
+    // HONEST LIMIT: a hostname still resolves through `getaddrinfo` and is
+    // still unbounded. Bounding it needs either a thread that cannot be
+    // killed (the abandon-the-child pattern three probes were just moved
+    // OFF) or an async resolver — neither of which this segment should
+    // acquire for a localhost metrics endpoint. Configure an IP.
+    let addr = match host.parse::<std::net::IpAddr>() {
+        Ok(ip) => std::net::SocketAddr::new(ip, port),
+        Err(_) => (host, port).to_socket_addrs().ok()?.next()?,
+    };
     let mut stream = TcpStream::connect_timeout(&addr, timeout).ok()?;
     stream.set_read_timeout(Some(timeout)).ok()?;
     stream.set_write_timeout(Some(timeout)).ok()?;
