@@ -292,24 +292,47 @@ workspace: b
         assert_eq!(format_status(2, true), "tend: 2 dirty (stale)");
     }
 
+    /// ── ★ THESE EXERCISE `build_segment`, NOT `format::render` ─────────
+    /// The two tests replaced here called `seki_core::format::render`
+    /// directly with a hand-written template and a hand-written variable
+    /// map — re-testing a function that has 11 tests in its own crate, and
+    /// touching nothing in this module. They would have stayed green if
+    /// `build_segment` were wrong, or deleted outright.
+    ///
+    /// A test that never calls the code it is filed under is not weak
+    /// coverage; it is zero coverage wearing a plausible name.
     #[test]
-    fn render_format_count_substitution() {
-        let out = seki_core::format::render("[$status: $count]($style)", |__n| match __n {
-            "count" => Some(7u32.to_string()),
-            "status" => Some("tend: 7 dirty".to_owned()),
-            _ => None,
-        });
-        assert_eq!(out, "tend: 7 dirty: 7");
+    fn build_segment_renders_the_count_through_the_configured_format() {
+        let cfg = TendConfig::default();
+        let seg = build_segment(&cfg, 7, false);
+        let text: String = seg.fragments.iter().map(|f| f.text.as_str()).collect();
+        assert!(
+            text.contains('7'),
+            "the count must reach the output: {text:?}"
+        );
+        assert_eq!(seg.module, "tend");
     }
 
+    /// Staleness must be VISIBLE. A cached count shown after a failed
+    /// probe, rendered identically to a fresh one, is the reading the
+    /// operator cannot tell is old.
     #[test]
-    fn render_format_default_template() {
-        let out = seki_core::format::render("[$status]($style)", |__n| match __n {
-            "count" => Some(0u32.to_string()),
-            "status" => Some("tend: clean".to_owned()),
-            _ => None,
-        });
-        assert_eq!(out, "tend: clean");
+    fn build_segment_marks_a_stale_reading_differently() {
+        let cfg = TendConfig::default();
+        let fresh: String = build_segment(&cfg, 3, false)
+            .fragments
+            .iter()
+            .map(|f| f.text.as_str())
+            .collect();
+        let stale: String = build_segment(&cfg, 3, true)
+            .fragments
+            .iter()
+            .map(|f| f.text.as_str())
+            .collect();
+        assert_ne!(
+            fresh, stale,
+            "a stale reading must not render identically to a fresh one"
+        );
     }
 
     #[test]
