@@ -54,10 +54,9 @@ impl Module for StylixModule {
             return Ok(None);
         };
         let text = seki_core::format::render_one(&self.cfg.format, "name", &scheme);
-        Ok(Some(Segment::new("stylix").push(StyledFragment::new(
-            text,
-            self.cfg.style.resolve(),
-        ))))
+        Ok(Some(
+            Segment::new("stylix").push(StyledFragment::new(text, self.cfg.style.resolve())),
+        ))
     }
 }
 
@@ -88,11 +87,7 @@ where
         }
     }
     let v = lookup(env_var)?;
-    if v.is_empty() {
-        None
-    } else {
-        Some(v)
-    }
+    if v.is_empty() { None } else { Some(v) }
 }
 
 fn env_lookup(name: &str) -> Option<String> {
@@ -107,7 +102,10 @@ mod tests {
 
     fn tmp_dir(name: &str) -> PathBuf {
         let mut p = std::env::temp_dir();
-        p.push(format!("seki-stylix-mod-test-{name}-{}", std::process::id()));
+        p.push(format!(
+            "seki-stylix-mod-test-{name}-{}",
+            std::process::id()
+        ));
         let _ = fs::remove_dir_all(&p);
         fs::create_dir_all(&p).unwrap();
         p
@@ -127,7 +125,10 @@ mod tests {
             r#"{"base16_scheme":"nord","unused":"x"}"#,
         )
         .unwrap();
-        let lookup = stub_lookup(HashMap::from([("STYLIX_BASE16_SCHEME", "gruvbox-dark-medium")]));
+        let lookup = stub_lookup(HashMap::from([(
+            "STYLIX_BASE16_SCHEME",
+            "gruvbox-dark-medium",
+        )]));
         let resolved = resolve_scheme(
             Some(&dir),
             ".config/stylix.json",

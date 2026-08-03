@@ -20,9 +20,7 @@
 //! shell session.
 
 use seki_core::{
-    Module, RenderContext, Segment, SekiResult,
-    config::vigy::VigyConfig,
-    segment::StyledFragment,
+    Module, RenderContext, Segment, SekiResult, config::vigy::VigyConfig, segment::StyledFragment,
 };
 use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
@@ -69,8 +67,12 @@ impl Module for VigyModule {
             }
         }
         // Cache miss — probe.
-        match probe_vigy(&self.cfg.host, self.cfg.port, &self.cfg.path, self.cfg.probe_timeout_ms)
-        {
+        match probe_vigy(
+            &self.cfg.host,
+            self.cfg.port,
+            &self.cfg.path,
+            self.cfg.probe_timeout_ms,
+        ) {
             Some((count, tick_hz)) => {
                 if let Ok(mut g) = self.cache.lock() {
                     *g = Some(CachedSnapshot {

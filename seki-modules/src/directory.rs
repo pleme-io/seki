@@ -2,8 +2,7 @@
 //! components, with `~` substituted for `$HOME`.
 
 use seki_core::{
-    Module, RenderContext, Segment, SekiResult,
-    config::directory::DirectoryConfig,
+    Module, RenderContext, Segment, SekiResult, config::directory::DirectoryConfig,
     segment::StyledFragment,
 };
 use std::path::Path;
@@ -43,10 +42,9 @@ impl Module for DirectoryModule {
         if text.is_empty() {
             return Ok(None);
         }
-        Ok(Some(Segment::new("directory").push(StyledFragment::new(
-            text,
-            self.cfg.style.resolve(),
-        ))))
+        Ok(Some(
+            Segment::new("directory").push(StyledFragment::new(text, self.cfg.style.resolve())),
+        ))
     }
 }
 

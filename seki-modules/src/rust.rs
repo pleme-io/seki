@@ -13,9 +13,7 @@
 //! only when a file on disk says it.
 
 use seki_core::{
-    Module, RenderContext, Segment, SekiResult,
-    config::rust::RustConfig,
-    segment::StyledFragment,
+    Module, RenderContext, Segment, SekiResult, config::rust::RustConfig, segment::StyledFragment,
 };
 use std::fs;
 use std::path::Path;
@@ -57,10 +55,9 @@ impl Module for RustModule {
             return Ok(None);
         }
         text.push_str(&self.cfg.suffix);
-        Ok(Some(Segment::new("rust").push(StyledFragment::new(
-            text,
-            self.cfg.style.resolve(),
-        ))))
+        Ok(Some(
+            Segment::new("rust").push(StyledFragment::new(text, self.cfg.style.resolve())),
+        ))
     }
 }
 

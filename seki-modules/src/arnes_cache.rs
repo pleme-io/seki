@@ -240,12 +240,8 @@ pub fn parse_hit_rate(text: &str) -> Option<f32> {
     // Read the numeric token — digits + optional `.`/`-`/`e`/`E`.
     let mut end = 0;
     for (i, ch) in after.char_indices() {
-        let is_numeric = ch.is_ascii_digit()
-            || ch == '.'
-            || ch == '-'
-            || ch == '+'
-            || ch == 'e'
-            || ch == 'E';
+        let is_numeric =
+            ch.is_ascii_digit() || ch == '.' || ch == '-' || ch == '+' || ch == 'e' || ch == 'E';
         if is_numeric {
             end = i + ch.len_utf8();
         } else {

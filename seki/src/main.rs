@@ -110,7 +110,8 @@ fn run_daemon() -> Result<()> {
 }
 
 fn run_init(args: &InitArgs) -> Result<()> {
-    let shell = Shell::parse(&args.shell).ok_or_else(|| anyhow!("unknown shell: {}", args.shell))?;
+    let shell =
+        Shell::parse(&args.shell).ok_or_else(|| anyhow!("unknown shell: {}", args.shell))?;
     if matches!(shell, Shell::Plain) {
         return Err(anyhow!("`plain` is not a real shell to init"));
     }

@@ -3,8 +3,7 @@
 //! `SSH_CONNECTION`.
 
 use seki_core::{
-    Module, RenderContext, Segment, SekiResult,
-    config::hostname::HostnameConfig,
+    Module, RenderContext, Segment, SekiResult, config::hostname::HostnameConfig,
     segment::StyledFragment,
 };
 use std::ffi::OsStr;
@@ -37,10 +36,9 @@ impl Module for HostnameModule {
         };
         let trimmed = trim_at(&host, &self.cfg.trim_at);
         let text = seki_core::format::render_one(&self.cfg.format, "hostname", &trimmed);
-        Ok(Some(Segment::new("hostname").push(StyledFragment::new(
-            text,
-            self.cfg.style.resolve(),
-        ))))
+        Ok(Some(
+            Segment::new("hostname").push(StyledFragment::new(text, self.cfg.style.resolve())),
+        ))
     }
 }
 
@@ -65,10 +63,12 @@ pub fn read_hostname() -> Option<String> {
     }
     let bytes = match hostname_libc() {
         Some(b) => b,
-        None => return std::fs::read_to_string("/etc/hostname")
-            .ok()
-            .map(|s| s.trim().to_owned())
-            .filter(|s| !s.is_empty()),
+        None => {
+            return std::fs::read_to_string("/etc/hostname")
+                .ok()
+                .map(|s| s.trim().to_owned())
+                .filter(|s| !s.is_empty());
+        }
     };
     Some(bytes)
 }
@@ -79,14 +79,14 @@ fn hostname_libc() -> Option<String> {
     let mut buf = [0u8; 256];
     // SAFETY: gethostname writes a NUL-terminated string into the
     // buffer; we then locate the NUL and decode as UTF-8.
-    let ret = unsafe {
-        libc_gethostname(buf.as_mut_ptr().cast::<i8>(), buf.len())
-    };
+    let ret = unsafe { libc_gethostname(buf.as_mut_ptr().cast::<i8>(), buf.len()) };
     if ret != 0 {
         return None;
     }
     let nul = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
-    let s = OsStr::from_bytes(&buf[..nul]).to_string_lossy().into_owned();
+    let s = OsStr::from_bytes(&buf[..nul])
+        .to_string_lossy()
+        .into_owned();
     if s.is_empty() { None } else { Some(s) }
 }
 

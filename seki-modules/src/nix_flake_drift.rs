@@ -158,10 +158,8 @@ fn run_drift_sweep(
         if started.elapsed() >= total_timeout {
             break;
         }
-        let upstream =
-            run_git_ls_remote(&cfg.git_command, &input.url, "main", per_input).or_else(|| {
-                run_git_ls_remote(&cfg.git_command, &input.url, "HEAD", per_input)
-            });
+        let upstream = run_git_ls_remote(&cfg.git_command, &input.url, "main", per_input)
+            .or_else(|| run_git_ls_remote(&cfg.git_command, &input.url, "HEAD", per_input));
         if let Some(upstream_rev) = upstream {
             if !input.rev.is_empty() && upstream_rev != input.rev {
                 behind += 1;
@@ -171,11 +169,7 @@ fn run_drift_sweep(
     Some(behind)
 }
 
-fn run_nix_metadata(
-    nix_command: &str,
-    cwd: &std::path::Path,
-    timeout: Duration,
-) -> Option<String> {
+fn run_nix_metadata(nix_command: &str, cwd: &std::path::Path, timeout: Duration) -> Option<String> {
     let cmd = nix_command.to_owned();
     let cwd_clone = cwd.to_path_buf();
     let (tx, rx) = mpsc::channel::<Option<String>>();
@@ -274,8 +268,12 @@ pub fn parse_pleme_io_inputs(metadata_json: &str, prefix: &str) -> Vec<FlakeInpu
         if url.starts_with(prefix) {
             // Compute the absolute index of the closing `"` so we can
             // window past it for the sibling rev search.
-            let url_start_abs =
-                idx + needle_url.len() + (metadata_json.len() - after.len() - metadata_json[..idx + needle_url.len()].len() + (metadata_json[idx + needle_url.len()..].len() - after.len()));
+            let url_start_abs = idx
+                + needle_url.len()
+                + (metadata_json.len()
+                    - after.len()
+                    - metadata_json[..idx + needle_url.len()].len()
+                    + (metadata_json[idx + needle_url.len()..].len() - after.len()));
             // Simpler: just find the URL string boundary forward of idx.
             let after_url_abs = idx
                 + needle_url.len()
@@ -333,7 +331,10 @@ mod tests {
 
     #[test]
     fn convert_input_url_rejects_non_github() {
-        assert_eq!(convert_input_url_to_git("git+https://example.com/foo"), None);
+        assert_eq!(
+            convert_input_url_to_git("git+https://example.com/foo"),
+            None
+        );
         assert_eq!(convert_input_url_to_git("path:./foo"), None);
     }
 

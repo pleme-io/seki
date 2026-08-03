@@ -46,8 +46,8 @@ pub fn detect(env: impl Fn(&str) -> Option<String>) -> Detected {
     // minimal; a `dumb`/CI terminal that hasn't proven capability is.
     // A merely-absent TERM is NOT treated as dumb (safe rich default for
     // an interactive shell).
-    let minimal =
-        get("NO_COLOR").is_some() || (!mado && !truecolor && (term == "dumb" || get("CI").is_some()));
+    let minimal = get("NO_COLOR").is_some()
+        || (!mado && !truecolor && (term == "dumb" || get("CI").is_some()));
     Detected {
         truecolor,
         mado,
@@ -161,7 +161,10 @@ mod tests {
 
     #[test]
     fn mado_implies_truecolor_and_rich() {
-        let d = detect(env_of(&[("MADO_SOCKET", "/tmp/mado.sock"), ("TERM", "mado")]));
+        let d = detect(env_of(&[
+            ("MADO_SOCKET", "/tmp/mado.sock"),
+            ("TERM", "mado"),
+        ]));
         assert!(d.mado);
         assert!(d.truecolor);
         assert!(!d.minimal);
@@ -173,7 +176,10 @@ mod tests {
 
     #[test]
     fn colorterm_truecolor_detected() {
-        let d = detect(env_of(&[("COLORTERM", "truecolor"), ("TERM", "xterm-256color")]));
+        let d = detect(env_of(&[
+            ("COLORTERM", "truecolor"),
+            ("TERM", "xterm-256color"),
+        ]));
         assert!(d.truecolor);
         assert!(!d.minimal);
     }
@@ -198,24 +204,40 @@ mod tests {
     #[test]
     fn mado_overrides_ci_minimal() {
         // Inside mado we KNOW the terminal is rich even if CI is set.
-        let d = detect(env_of(&[("MADO_SOCKET", "/x"), ("CI", "true"), ("TERM", "dumb")]));
+        let d = detect(env_of(&[
+            ("MADO_SOCKET", "/x"),
+            ("CI", "true"),
+            ("TERM", "dumb"),
+        ]));
         assert!(!d.minimal, "mado is always rich");
         assert!(d.truecolor);
     }
 
     #[test]
     fn width_tightens_truncation_on_narrow_panes() {
-        let wide = discovered_config(&detect(env_of(&[("COLORTERM", "truecolor"), ("COLUMNS", "220")])));
+        let wide = discovered_config(&detect(env_of(&[
+            ("COLORTERM", "truecolor"),
+            ("COLUMNS", "220"),
+        ])));
         assert_eq!(wide.directory.truncation_length, 4);
-        let narrow = discovered_config(&detect(env_of(&[("COLORTERM", "truecolor"), ("COLUMNS", "50")])));
+        let narrow = discovered_config(&detect(env_of(&[
+            ("COLORTERM", "truecolor"),
+            ("COLUMNS", "50"),
+        ])));
         assert_eq!(narrow.directory.truncation_length, 1);
-        let mid = discovered_config(&detect(env_of(&[("COLORTERM", "truecolor"), ("COLUMNS", "80")])));
+        let mid = discovered_config(&detect(env_of(&[
+            ("COLORTERM", "truecolor"),
+            ("COLUMNS", "80"),
+        ])));
         assert_eq!(mid.directory.truncation_length, 2);
     }
 
     #[test]
     fn ssh_keeps_host_visible() {
-        let d = detect(env_of(&[("COLORTERM", "truecolor"), ("SSH_CONNECTION", "1.2.3.4 22 5.6.7.8 22")]));
+        let d = detect(env_of(&[
+            ("COLORTERM", "truecolor"),
+            ("SSH_CONNECTION", "1.2.3.4 22 5.6.7.8 22"),
+        ]));
         assert!(d.ssh);
         let c = discovered_config(&d);
         assert!(c.hostname.enabled && c.hostname.ssh_only);

@@ -30,6 +30,7 @@ pub mod env_var;
 pub mod fleet_node;
 pub mod git_branch;
 pub mod git_status;
+pub mod gitops;
 pub mod hostname;
 pub mod ishou_theme;
 pub mod kasou_vm;
@@ -82,6 +83,7 @@ pub struct SekiConfig {
     pub directory: directory::DirectoryConfig,
     pub git_branch: git_branch::GitBranchConfig,
     pub git_status: git_status::GitStatusConfig,
+    pub gitops: gitops::GitopsConfig,
     pub hostname: hostname::HostnameConfig,
     pub cmd_duration: cmd_duration::CmdDurationConfig,
     pub nix_shell: nix_shell::NixShellConfig,
@@ -176,6 +178,11 @@ impl SekiConfig {
     pub fn seki_default() -> Self {
         Self {
             prompt_order: vec![
+                // First: a node that has stopped reconciling is the most
+                // important thing on the line, and it renders nothing at
+                // all when healthy — so it costs no width in the normal
+                // case and cannot be scrolled past in the abnormal one.
+                "gitops".to_owned(),
                 "directory".to_owned(),
                 "git_branch".to_owned(),
                 "git_status".to_owned(),
@@ -192,6 +199,7 @@ impl SekiConfig {
             directory: directory::DirectoryConfig::default(),
             git_branch: git_branch::GitBranchConfig::default(),
             git_status: git_status::GitStatusConfig::default(),
+            gitops: gitops::GitopsConfig::default(),
             hostname: hostname::HostnameConfig::default(),
             cmd_duration: cmd_duration::CmdDurationConfig::default(),
             nix_shell: nix_shell::NixShellConfig::default(),
@@ -281,6 +289,7 @@ impl SekiConfig {
             directory: directory::DirectoryConfig::bare(),
             git_branch: git_branch::GitBranchConfig::bare(),
             git_status: git_status::GitStatusConfig::bare(),
+            gitops: gitops::GitopsConfig::bare(),
             hostname: hostname::HostnameConfig::bare(),
             cmd_duration: cmd_duration::CmdDurationConfig::bare(),
             nix_shell: nix_shell::NixShellConfig::bare(),

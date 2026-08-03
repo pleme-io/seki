@@ -6,8 +6,7 @@
 //! HEAD renders as the truncated SHA.
 
 use seki_core::{
-    Module, RenderContext, Segment, SekiResult,
-    config::git_branch::GitBranchConfig,
+    Module, RenderContext, Segment, SekiResult, config::git_branch::GitBranchConfig,
     segment::StyledFragment,
 };
 use std::fs;
@@ -39,8 +38,11 @@ impl Module for GitBranchModule {
         let Some(branch) = read_head_branch(&git_dir) else {
             return Ok(None);
         };
-        let truncated =
-            truncate_branch(&branch, self.cfg.truncation_length as usize, &self.cfg.truncation_symbol);
+        let truncated = truncate_branch(
+            &branch,
+            self.cfg.truncation_length as usize,
+            &self.cfg.truncation_symbol,
+        );
         // Typed `format` is authoritative (e.g. companion's
         // " [$symbol$branch]"), rendered through the shared engine so
         // the leading space + 🌿 symbol land consistently.
@@ -52,10 +54,9 @@ impl Module for GitBranchModule {
         if text.is_empty() {
             return Ok(None);
         }
-        Ok(Some(Segment::new("git_branch").push(StyledFragment::new(
-            text,
-            self.cfg.style.resolve(),
-        ))))
+        Ok(Some(
+            Segment::new("git_branch").push(StyledFragment::new(text, self.cfg.style.resolve())),
+        ))
     }
 }
 

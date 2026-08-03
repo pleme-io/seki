@@ -147,10 +147,9 @@ impl Module for GitStatusModule {
         if body.is_empty() {
             return Ok(None);
         }
-        Ok(Some(Segment::new("git_status").push(StyledFragment::new(
-            body,
-            self.cfg.style.resolve(),
-        ))))
+        Ok(Some(
+            Segment::new("git_status").push(StyledFragment::new(body, self.cfg.style.resolve())),
+        ))
     }
 }
 

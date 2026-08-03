@@ -23,6 +23,7 @@ use seki_core::config::{
     env_var::{EnvVarConfig, EnvVarEntry},
     git_branch::GitBranchConfig,
     git_status::GitStatusConfig,
+    gitops::GitopsConfig,
     hostname::HostnameConfig,
     lang::LangModuleConfig,
     nix_shell::NixShellConfig,
@@ -166,6 +167,11 @@ pub fn blzsh_parity_config() -> SekiConfig {
         // vocabulary here to preserve — just an unnoticed bug this
         // "parity" pin faithfully copied. Fixed to the SAME glyph
         // starship.toml now uses, so both configs render identically.
+        // The reconciler-health readout. Default (not `bare`): a blzsh
+        // parity prompt must still tell the operator when the node has
+        // stopped reconciling — that is the one thing no other segment
+        // reports, and it renders nothing while healthy.
+        gitops: GitopsConfig::default(),
         git_status: GitStatusConfig {
             enabled: true,
             format: "[$all_status$ahead_behind]($style) ".to_owned(),
@@ -284,11 +290,15 @@ pub fn blzsh_parity_config() -> SekiConfig {
                     },
                 );
                 m.insert(
-                    ishou_tokens::FleetStateVar::TearSessionName.name().to_owned(),
+                    ishou_tokens::FleetStateVar::TearSessionName
+                        .name()
+                        .to_owned(),
                     EnvVarEntry {
                         enabled: true,
                         variable: Some(
-                            ishou_tokens::FleetStateVar::TearSessionName.name().to_owned(),
+                            ishou_tokens::FleetStateVar::TearSessionName
+                                .name()
+                                .to_owned(),
                         ),
                         default: String::new(),
                         style: StyleSpec::new("bold #88C0D0"),

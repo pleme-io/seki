@@ -2,8 +2,7 @@
 //! to decide whether we're in a nix shell (pure / impure / unknown).
 
 use seki_core::{
-    Module, RenderContext, Segment, SekiResult,
-    config::nix_shell::NixShellConfig,
+    Module, RenderContext, Segment, SekiResult, config::nix_shell::NixShellConfig,
     segment::StyledFragment,
 };
 
@@ -66,10 +65,9 @@ impl Module for NixShellModule {
         if text.is_empty() {
             return Ok(None);
         }
-        Ok(Some(Segment::new("nix_shell").push(StyledFragment::new(
-            text,
-            self.cfg.style.resolve(),
-        ))))
+        Ok(Some(
+            Segment::new("nix_shell").push(StyledFragment::new(text, self.cfg.style.resolve())),
+        ))
     }
 }
 

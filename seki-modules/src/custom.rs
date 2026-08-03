@@ -89,7 +89,13 @@ fn run_command(cmd: &str) -> Option<String> {
 
 /// Helper for declarative entry construction in the blzsh-parity
 /// config — same shape as the inline TOML.
-pub fn entry(description: &str, command: &str, when: Option<&str>, format: &str, style: &str) -> CustomEntry {
+pub fn entry(
+    description: &str,
+    command: &str,
+    when: Option<&str>,
+    format: &str,
+    style: &str,
+) -> CustomEntry {
     CustomEntry {
         enabled: true,
         description: description.to_owned(),
@@ -107,6 +113,9 @@ mod tests {
 
     #[test]
     fn renders_tear_pane_format() {
-        assert_eq!(render_one("[· $output]($style) ", "output", "abcdef"), "· abcdef ");
+        assert_eq!(
+            render_one("[· $output]($style) ", "output", "abcdef"),
+            "· abcdef "
+        );
     }
 }

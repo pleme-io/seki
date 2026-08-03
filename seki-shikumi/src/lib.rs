@@ -85,7 +85,10 @@ impl TieredConfig for TieredSekiConfig {
         let mut cfg = fleet_base::fleet_base_config();
 
         const SIG: ishou_tokens::SekiSignals = ishou_tokens::SekiSignals::prescribed();
-        let mut rust_symbol = SIG.lang_rust.render(ishou_tokens::SignalMode::Glyph).to_owned();
+        let mut rust_symbol = SIG
+            .lang_rust
+            .render(ishou_tokens::SignalMode::Glyph)
+            .to_owned();
         rust_symbol.push(' ');
         cfg.rust = seki_core::config::rust::RustConfig {
             enabled: true,
@@ -129,7 +132,10 @@ mod tests {
         // it by forgetting to derive from `fleet_base`.
         let name = ishou_tokens::FleetStateVar::TearSessionName.name();
         for (tier, cfg) in [
-            ("prescribed_default", TieredSekiConfig::prescribed_default().0),
+            (
+                "prescribed_default",
+                TieredSekiConfig::prescribed_default().0,
+            ),
             ("companion", companion_config::companion_config()),
             ("vellum", vellum_config::vellum_config()),
         ] {
@@ -168,10 +174,17 @@ mod tests {
         assert!(!c.username.enabled);
         // order anchors preserved: nix_shell first, ❄ character last,
         // rust spliced in just before the character anchor.
-        assert_eq!(c.prompt_order.first().map(String::as_str), Some("nix_shell"));
+        assert_eq!(
+            c.prompt_order.first().map(String::as_str),
+            Some("nix_shell")
+        );
         assert_eq!(c.prompt_order.last().map(String::as_str), Some("character"));
         let rust_pos = c.prompt_order.iter().position(|s| s == "rust").unwrap();
-        let char_pos = c.prompt_order.iter().position(|s| s == "character").unwrap();
+        let char_pos = c
+            .prompt_order
+            .iter()
+            .position(|s| s == "character")
+            .unwrap();
         assert_eq!(rust_pos + 1, char_pos, "rust sits immediately before ❄");
     }
 
@@ -193,8 +206,7 @@ mod tests {
         use unicode_width::UnicodeWidthChar;
 
         let cfg = TieredSekiConfig::prescribed_default();
-        let serialized =
-            serde_yaml::to_string(&cfg).expect("prescribed default serializes");
+        let serialized = serde_yaml::to_string(&cfg).expect("prescribed default serializes");
 
         let offenders: Vec<(char, usize)> = serialized
             .chars()

@@ -22,8 +22,7 @@
 //! `(stale)`. Probe failures render nothing (graceful absence).
 
 use seki_core::{
-    Module, RenderContext, Segment, SekiResult,
-    config::shikumi_config::ShikumiConfigConfig,
+    Module, RenderContext, Segment, SekiResult, config::shikumi_config::ShikumiConfigConfig,
     segment::StyledFragment,
 };
 use std::process::{Command, Stdio};
@@ -134,7 +133,8 @@ impl Module for ShikumiConfigModule {
             .collect();
         let text = rendered.join(&self.cfg.separator);
         Ok(Some(
-            Segment::new("shikumi_config").push(StyledFragment::new(text, self.cfg.style.resolve())),
+            Segment::new("shikumi_config")
+                .push(StyledFragment::new(text, self.cfg.style.resolve())),
         ))
     }
 }
@@ -193,9 +193,7 @@ fn run_config_show(app: &str, tier: &str) -> bool {
 /// Build the cache map view from a snapshot — useful for testing
 /// (kept in case future tests need it; not used in render path).
 #[cfg(test)]
-fn cache_view(
-    snapshot: &[CachedProbe],
-) -> std::collections::HashMap<(String, String), Instant> {
+fn cache_view(snapshot: &[CachedProbe]) -> std::collections::HashMap<(String, String), Instant> {
     snapshot
         .iter()
         .map(|c| ((c.app.clone(), c.tier.clone()), c.captured_at))
@@ -217,7 +215,11 @@ mod tests {
             ("MADO_TIER", "bare"),
             ("KENSHI_TIER", "default"),
         ]));
-        let apps = vec!["mado".to_string(), "kenshi".to_string(), "tatara".to_string()];
+        let apps = vec![
+            "mado".to_string(),
+            "kenshi".to_string(),
+            "tatara".to_string(),
+        ];
         let hits = scan_env(&apps, lookup);
         assert_eq!(hits.len(), 2);
         assert_eq!(hits[0], ("mado".to_string(), "bare".to_string()));
@@ -229,7 +231,10 @@ mod tests {
         let lookup = stub_lookup(HashMap::from([("ZOEKT_MCP_TIER", "discovered")]));
         let apps = vec!["zoekt-mcp".to_string()];
         let hits = scan_env(&apps, lookup);
-        assert_eq!(hits, vec![("zoekt-mcp".to_string(), "discovered".to_string())]);
+        assert_eq!(
+            hits,
+            vec![("zoekt-mcp".to_string(), "discovered".to_string())]
+        );
     }
 
     #[test]
