@@ -128,21 +128,42 @@ fn run_tatara_node_list(command: &str) -> Option<u32> {
         return None;
     }
     let text = String::from_utf8(output.stdout).ok()?;
-    Some(parse_tatara_json(&text))
+    parse_tatara_json(&text)
 }
 
 /// Count running allocations from JSON output. Tolerantly checks
 /// `"allocations_running"` / `"running"` integer fields, then falls
 /// back to counting `"status":"Running"`.
-pub fn parse_tatara_json(body: &str) -> u32 {
+/// ── ★ NO ALLOCATION DATA IS NO READING, NOT ZERO ───────────────────────
+/// Returned a bare `u32`, so a body carrying neither an explicit count nor
+/// a single `"status"` entry — an error page, a moved schema, a binary
+/// that exited 0 with a warning — tallied to 0 and rendered as a MEASURED
+/// `tatara: 0`. Same shape as `tend`'s green `clean`, and as `shigoto`'s
+/// `idle` before its `has_phases` guard landed.
+///
+/// The explicit fields are evidence in themselves; the scan needs a
+/// `"status"` marker before a count over it means anything.
+pub fn parse_tatara_json(body: &str) -> Option<u32> {
     if let Some(n) = extract_u32_field(body, "allocations_running") {
-        return n;
+        return Some(n);
     }
     if let Some(n) = extract_u32_field(body, "running") {
-        return n;
+        return Some(n);
     }
-    body.matches("\"status\":\"Running\"").count() as u32
-        + body.matches("\"status\": \"Running\"").count() as u32
+    // ── ★ THE MARKER IS THE CONTAINER, NOT THE ENTRIES ─────────────────
+    // First written as `"status"`, and the repo's own
+    // `parse_tatara_json_empty_returns_zero` went red: `{"allocs":[]}` is a
+    // GENUINE zero — tatara answered, and the answer is "none running".
+    // Keying on the entries would have turned every real idle reading into
+    // "no evidence" and silenced the segment exactly when it is healthy,
+    // which is a worse failure than the one being fixed.
+    //
+    // The container proves the document is a tatara response; the entries
+    // only prove it is non-empty.
+    seki_core::exec::tally_with_evidence(body, &["\"allocs\"", "\"status\""], |b| {
+        b.matches("\"status\":\"Running\"").count() as u32
+            + b.matches("\"status\": \"Running\"").count() as u32
+    })
 }
 
 fn extract_u32_field(body: &str, name: &str) -> Option<u32> {
@@ -163,12 +184,36 @@ fn extract_u32_field(body: &str, name: &str) -> Option<u32> {
 
 #[cfg(test)]
 mod tests {
+    /// ── ★ THE `stable` CLASS, IN A COUNT ───────────────────────────────
+    /// A zero-exit body with nothing countable in it used to tally to 0,
+    /// and 0 renders GREEN — "measured, and everything is fine" — for a
+    /// document the segment never actually understood.
+    ///
+    /// Red run: drop the `tally_with_evidence` guard and this returns
+    /// `Some(0)`, the literal bytes that render as healthy.
+    #[test]
+    fn a_body_with_nothing_countable_is_no_reading() {
+        assert_eq!(
+            parse_tatara_json(r#"<html><body>502 Bad Gateway</body></html>"#),
+            None,
+            "an unparseable body must not render as a measured zero"
+        );
+    }
+
+    /// The negative control: a body that IS understood must still read.
+    /// Without it, returning `None` unconditionally passes the case above
+    /// and silences the segment permanently.
+    #[test]
+    fn a_body_that_is_understood_still_reads() {
+        assert!(parse_tatara_json(r#"{"allocs":[{"status":"Running"}]}"#).is_some());
+    }
+
     use super::*;
 
     #[test]
     fn parse_tatara_json_explicit_running_count() {
         let body = r#"{"allocations_running": 7}"#;
-        assert_eq!(parse_tatara_json(body), 7);
+        assert_eq!(parse_tatara_json(body), Some(7));
     }
 
     #[test]
@@ -177,19 +222,19 @@ mod tests {
             {"status":"Running"},{"status":"Running"},
             {"status":"Pending"},{"status":"Running"}
         ]}"#;
-        assert_eq!(parse_tatara_json(body), 3);
+        assert_eq!(parse_tatara_json(body), Some(3));
     }
 
     #[test]
     fn parse_tatara_json_empty_returns_zero() {
         let body = r#"{"allocs":[]}"#;
-        assert_eq!(parse_tatara_json(body), 0);
+        assert_eq!(parse_tatara_json(body), Some(0));
     }
 
     #[test]
     fn parse_tatara_json_alternate_running_key() {
         let body = r#"{"running": 4}"#;
-        assert_eq!(parse_tatara_json(body), 4);
+        assert_eq!(parse_tatara_json(body), Some(4));
     }
 
     #[test]

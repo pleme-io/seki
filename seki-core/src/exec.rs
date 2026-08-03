@@ -213,3 +213,66 @@ mod tests {
         assert_eq!(got.as_deref(), Some("done"));
     }
 }
+
+/// Was there anything in this body worth counting?
+///
+/// ── ★ "ZERO" AND "NOTHING TO COUNT" ARE DIFFERENT ANSWERS ───────────────
+/// A probe that tallies matches over a document returns 0 for both "the
+/// system is idle" and "this is not the document I think it is" — an error
+/// page, a changed schema, a binary that printed a warning and exited 0.
+/// The first renders green and is true; the second renders green and is a
+/// fabrication, and they are byte-identical downstream.
+///
+/// `shigoto` hit this first and fixed it with a `has_phases` guard plus a
+/// recorded red run: "A body with no explicit counts AND no phase entries
+/// used to tally to exactly that, so an error page or a moved schema read
+/// as 'nothing to do'." `tend` and `tatara_workload` had the same shape and
+/// no guard. Three copies is where the rule stops living in one segment.
+///
+/// Returns `Some(count)` only when `body` carries at least one `marker`;
+/// `None` means "no evidence", which a caller must render as absence, never
+/// as zero.
+#[must_use]
+pub fn tally_with_evidence(
+    body: &str,
+    markers: &[&str],
+    count: impl FnOnce(&str) -> u32,
+) -> Option<u32> {
+    if !markers.iter().any(|m| body.contains(m)) {
+        return None;
+    }
+    Some(count(body))
+}
+
+#[cfg(test)]
+mod tally_tests {
+    use super::*;
+
+    #[test]
+    fn a_body_with_no_marker_is_no_reading_not_zero() {
+        assert_eq!(
+            tally_with_evidence("<html>502 Bad Gateway</html>", &["\"phase\""], |_| 0),
+            None,
+            "an error page must not tally to a green zero"
+        );
+    }
+
+    #[test]
+    fn an_empty_body_is_no_reading() {
+        assert_eq!(tally_with_evidence("", &["["], |_| 0), None);
+    }
+
+    /// The negative control: a body that DOES carry the marker and
+    /// genuinely counts zero is a real reading and must survive. Without
+    /// this, returning `None` unconditionally would pass the two above and
+    /// silence every healthy segment.
+    fn _control() {}
+    #[test]
+    fn a_real_zero_is_still_a_reading() {
+        assert_eq!(
+            tally_with_evidence("[ok] foo clean", &["["], |_| 0),
+            Some(0),
+            "a document that carries entries and counts zero IS measured"
+        );
+    }
+}

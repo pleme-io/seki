@@ -179,7 +179,7 @@ fn run_tend_status(command: &str) -> Option<u32> {
         return None;
     }
     let text = String::from_utf8(output.stdout).ok()?;
-    Some(parse_tend_status_text(&text))
+    parse_tend_status_text(&text)
 }
 
 /// Parse the count of non-clean repos from `tend status` plain-text
@@ -197,7 +197,21 @@ fn run_tend_status(command: &str) -> Option<u32> {
 /// We count any data line whose terminal column is anything other
 /// than `clean`. Header / blank lines are skipped. The same shape
 /// is used by every workspace in the output.
-pub fn parse_tend_status_text(text: &str) -> u32 {
+/// ── ★ NO DATA LINES IS NO READING, NOT ZERO ────────────────────────────
+/// Returned `u32` before, so a body with no `[..]` entries at all — an
+/// error page, a `tend` that printed a warning and exited 0, a changed
+/// output format — tallied to 0 and rendered as the GREEN `tend: clean`.
+/// "Could not measure" presented as "measured, and everything is
+/// converged", which is the same defect that made `rust` print `stable`.
+///
+/// `shigoto` fixed the identical shape with its `has_phases` guard and
+/// recorded the red run; this is the third instance, so the rule lives in
+/// `seki_core::exec::tally_with_evidence` now rather than a third copy.
+pub fn parse_tend_status_text(text: &str) -> Option<u32> {
+    seki_core::exec::tally_with_evidence(text, &["["], count_non_clean)
+}
+
+fn count_non_clean(text: &str) -> u32 {
     let mut count: u32 = 0;
     for line in text.lines() {
         let trimmed = line.trim_start();
@@ -219,18 +233,42 @@ pub fn parse_tend_status_text(text: &str) -> u32 {
 
 #[cfg(test)]
 mod tests {
+    /// ── ★ THE `stable` CLASS, IN A COUNT ───────────────────────────────
+    /// A zero-exit body with nothing countable in it used to tally to 0,
+    /// and 0 renders GREEN — "measured, and everything is fine" — for a
+    /// document the segment never actually understood.
+    ///
+    /// Red run: drop the `tally_with_evidence` guard and this returns
+    /// `Some(0)`, the literal bytes that render as healthy.
+    #[test]
+    fn a_body_with_nothing_countable_is_no_reading() {
+        assert_eq!(
+            parse_tend_status_text("error: could not connect to the tend daemon\n"),
+            None,
+            "an unparseable body must not render as a measured zero"
+        );
+    }
+
+    /// The negative control: a body that IS understood must still read.
+    /// Without it, returning `None` unconditionally passes the case above
+    /// and silences the segment permanently.
+    #[test]
+    fn a_body_that_is_understood_still_reads() {
+        assert!(parse_tend_status_text("  [ok] foo   clean\n  [!!] bar   dirty\n").is_some());
+    }
+
     use super::*;
 
     #[test]
     fn parses_single_workspace_dirty_count() {
         let text = "workspace: pleme-io\n\n  [ok] a clean\n  [!!] b dirty\n  [--] c missing\n";
-        assert_eq!(parse_tend_status_text(text), 2);
+        assert_eq!(parse_tend_status_text(text), Some(2));
     }
 
     #[test]
     fn parses_all_clean_as_zero() {
         let text = "workspace: pleme-io\n\n  [ok] a clean\n  [ok] b clean\n";
-        assert_eq!(parse_tend_status_text(text), 0);
+        assert_eq!(parse_tend_status_text(text), Some(0));
     }
 
     #[test]
@@ -246,13 +284,13 @@ workspace: b
   [??] r3 unknown
   [ok] r4 clean
 ";
-        assert_eq!(parse_tend_status_text(text), 2);
+        assert_eq!(parse_tend_status_text(text), Some(2));
     }
 
     #[test]
     fn skips_non_data_lines() {
         let text = "\nworkspace: x\nrandom prose\n  not a tag line\n  [ok] r clean\n";
-        assert_eq!(parse_tend_status_text(text), 0);
+        assert_eq!(parse_tend_status_text(text), Some(0));
     }
 
     #[test]
