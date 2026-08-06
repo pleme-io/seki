@@ -36,6 +36,37 @@ pub enum Shell {
 }
 
 impl Shell {
+    /// How this shell wants non-printing bytes fenced out of its
+    /// prompt-width arithmetic.
+    ///
+    /// Derived from the shell rather than chosen per call site, so the two
+    /// facts ("we are rendering for zsh" and "zsh needs `%{…%}`") cannot
+    /// drift apart — the drift IS the bug this fixes.
+    ///
+    /// The match is exhaustive on purpose: a new `Shell` variant will not
+    /// compile until someone states its fencing, which is exactly the
+    /// question that went unasked for the life of this crate.
+    #[must_use]
+    pub fn prompt_fence(self) -> crate::style::PromptFence {
+        use crate::style::PromptFence as F;
+        match self {
+            Shell::Zsh => F::ZSH,
+            Shell::Bash => F::BASH,
+            // fish and nu render the prompt themselves and measure the
+            // result, so they need no fence — and would print `%{` as
+            // literal text if given one.
+            Shell::Fish | Shell::Nu => F::NONE,
+            // frostmourne is pleme-io's own shell. NONE is the honest
+            // answer today, not a claim that it needs none: nothing in
+            // frostmourne currently declares a fencing grammar. If it
+            // grows prompt-width arithmetic, this arm is where it lands.
+            Shell::Frostmourne => F::NONE,
+            // Not a line editor — a bare render to stdout, where fence
+            // delimiters would be literal garbage in the stream.
+            Shell::Plain => F::NONE,
+        }
+    }
+
     pub fn as_str(self) -> &'static str {
         match self {
             Shell::Bash => "bash",
