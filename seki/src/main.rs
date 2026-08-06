@@ -147,7 +147,15 @@ fn run_module(args: &ModuleArgs) -> Result<()> {
             for fragment in &segment.fragments {
                 print!(
                     "{}",
-                    seki_core::style::apply(&fragment.text, &fragment.style, ctx.enable_colors),
+                    // `seki module <name>` prints ONE module to stdout for
+                    // inspection — it is not a prompt, so fencing here would
+                    // emit literal `%{` into the operator's terminal.
+                    seki_core::style::apply(
+                        &fragment.text,
+                        &fragment.style,
+                        ctx.enable_colors,
+                        seki_core::style::PromptFence::NONE,
+                    ),
                 );
             }
             println!();

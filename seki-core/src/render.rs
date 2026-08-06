@@ -75,7 +75,12 @@ pub fn render_prompt(
                     raw.push(' ');
                 }
                 for fragment in &segment.fragments {
-                    raw.push_str(&apply(&fragment.text, &fragment.style, ctx.enable_colors));
+                    raw.push_str(&apply(
+                        &fragment.text,
+                        &fragment.style,
+                        ctx.enable_colors,
+                        ctx.shell.prompt_fence(),
+                    ));
                     if let Some(c) = fragment.text.chars().next_back() {
                         last_visible = Some(c);
                     }
@@ -96,7 +101,12 @@ pub fn render_prompt(
             if last_visible.is_some_and(|c: char| !c.is_whitespace()) {
                 raw.push(' ');
             }
-            raw.push_str(&apply(&text, &style, ctx.enable_colors));
+            raw.push_str(&apply(
+                &text,
+                &style,
+                ctx.enable_colors,
+                ctx.shell.prompt_fence(),
+            ));
             // Trailing space per starship's `"$symbol "` default.
             raw.push(' ');
         }
