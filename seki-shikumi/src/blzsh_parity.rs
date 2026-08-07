@@ -319,6 +319,17 @@ pub fn blzsh_parity_config() -> SekiConfig {
         // format  = '[· $output]($style) '
         // style   = 'dimmed #88C0D0'
         // ignore_timeout = true
+        //
+        // ── ★ THE MIRROR KEEPS THE SHELL FORM; THE FLEET DOES NOT ───────
+        // A `CustomSource::EnvSlice` renders this byte-identically and
+        // costs no process — but starship's TOML cannot express one, so
+        // recording it here would break the `// blzsh: <field> = <value>`
+        // correspondence this whole file exists to be. The mirror stays a
+        // faithful transcription of what blzsh's starship.toml SAID,
+        // including that the command is a bash-only `${VAR:0:6}` that
+        // fails loudly under dash. The deviation lives one layer up in
+        // `fleet_base`, which is what every operator-reachable tier
+        // actually resolves to; nothing but tests reads this function.
         custom: CustomConfig {
             entries: {
                 let mut m = BTreeMap::new();
@@ -327,15 +338,20 @@ pub fn blzsh_parity_config() -> SekiConfig {
                     seki_core::config::custom::CustomEntry {
                         enabled: true,
                         description: "Truncated TEAR_PANE_ID inside a tear pane".to_owned(),
-                        command: "printf \"%s\" \"${TEAR_PANE_ID:0:6}\"".to_owned(),
-                        when: Some("[ -n \"$TEAR_PANE_ID\" ]".to_owned()),
+                        source: seki_core::config::custom::CustomSource::Shell(
+                            seki_core::config::custom::ShellSource {
+                                command: "printf \"%s\" \"${TEAR_PANE_ID:0:6}\"".to_owned(),
+                                when: Some("[ -n \"$TEAR_PANE_ID\" ]".to_owned()),
+                                // The TOML's own claim, transcribed. It was
+                                // wrong: two `sh` starts is ~21 ms on macOS
+                                // (bash 3.2), not microseconds. Being wrong
+                                // is part of what the mirror records.
+                                ignore_timeout: true,
+                                command_timeout_ms: 500,
+                            },
+                        ),
                         style: StyleSpec::new("dimmed #88C0D0"),
                         format: "[· $output]($style) ".to_owned(),
-                        // Both commands here are pure shell-builtin string
-                        // ops on an env var — microseconds, no I/O. The
-                        // budget is a backstop, not a constraint.
-                        ignore_timeout: true,
-                        command_timeout_ms: 500,
                     },
                 );
                 m
@@ -616,11 +632,20 @@ mod tests {
 
     #[test]
     fn blzsh_parity_custom_tear_pane_matches_reference() {
+        use seki_core::config::custom::CustomSource;
+
         let c = blzsh_parity_config();
         let tp = &c.custom.entries["tear_pane"];
-        assert_eq!(tp.command, "printf \"%s\" \"${TEAR_PANE_ID:0:6}\"");
-        assert_eq!(tp.when.as_deref(), Some("[ -n \"$TEAR_PANE_ID\" ]"));
+        // The reference TOML declares a shell command, so the mirror
+        // declares a shell command — verbatim, bashism included. The
+        // process-free `EnvSlice` rendering of the same tag is the
+        // FLEET's decision and lives in `fleet_base`.
+        let CustomSource::Shell(shell) = &tp.source else {
+            panic!("the parity mirror transcribes starship's command form: {tp:?}");
+        };
+        assert_eq!(shell.command, "printf \"%s\" \"${TEAR_PANE_ID:0:6}\"");
+        assert_eq!(shell.when.as_deref(), Some("[ -n \"$TEAR_PANE_ID\" ]"));
         assert_eq!(tp.format, "[· $output]($style) ");
-        assert!(tp.ignore_timeout);
+        assert!(shell.ignore_timeout);
     }
 }
