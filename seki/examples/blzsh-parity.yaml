@@ -102,11 +102,18 @@ custom:
     tear_pane:
       enabled: true
       description: Truncated TEAR_PANE_ID inside a tear pane
-      command: printf "%s" "${TEAR_PANE_ID:0:6}"
-      when: '[ -n "$TEAR_PANE_ID" ]'
+      # The PARITY transcription of starship's command form — the one
+      # `CustomSource` variant that costs a process (two, with `when`).
+      # Every fleet tier renders this same tag from `kind: env_slice`
+      # instead; see `seki-shikumi/src/fleet_base.rs`.
+      source:
+        kind: shell
+        command: printf "%s" "${TEAR_PANE_ID:0:6}"
+        when: '[ -n "$TEAR_PANE_ID" ]'
+        ignore_timeout: true
+        command_timeout_ms: 500
       style: 'dimmed #88C0D0'
       format: '[· $output]($style) '
-      ignore_timeout: true
 rust:
   enabled: false
   symbol: '🦀 '

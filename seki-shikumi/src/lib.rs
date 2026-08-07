@@ -146,6 +146,57 @@ mod tests {
         }
     }
 
+    /// FORCING FUNCTION — no tier an operator can land on may pay for a
+    /// process to render a `custom` segment.
+    ///
+    /// The class this closes: `custom` was an untyped `command: String`,
+    /// so the fleet's ONE default entry (`tear_pane`) quietly spent two
+    /// `sh -c` starts — ~20.7 ms of a 28.1 ms prompt on ryn — taking a
+    /// substring of `$TEAR_PANE_ID`. `CustomSource` makes the spawn a
+    /// declared variant; this asserts no tier declares it. A future
+    /// entry that genuinely needs a command is not forbidden — it is
+    /// required to say so here, in front of a reviewer, rather than
+    /// arriving as an incidental cost of the segment family.
+    ///
+    /// Guarded against vacuity: an empty `custom.entries` would satisfy
+    /// the sweep without proving anything, so the first assertion pins
+    /// that a tier really does declare an enabled entry to reject.
+    #[test]
+    fn no_operator_reachable_tier_spawns_to_render_a_prompt() {
+        assert!(
+            TieredSekiConfig::prescribed_default()
+                .0
+                .custom
+                .entries
+                .values()
+                .any(|e| e.enabled),
+            "the check below is vacuous unless a tier declares a custom entry",
+        );
+
+        for (tier, cfg) in [
+            (
+                "prescribed_default",
+                TieredSekiConfig::prescribed_default().0,
+            ),
+            ("companion", companion_config::companion_config()),
+            ("vellum", vellum_config::vellum_config()),
+            ("discovered", TieredSekiConfig::discovered().0),
+            ("bare", TieredSekiConfig::bare().0),
+        ] {
+            let spawning: Vec<&str> = cfg
+                .custom
+                .entries
+                .iter()
+                .filter(|(_, e)| e.enabled && e.source.spawns())
+                .map(|(name, _)| name.as_str())
+                .collect();
+            assert!(
+                spawning.is_empty(),
+                "{tier} starts a shell to draw the prompt, for: {spawning:?}",
+            );
+        }
+    }
+
     #[test]
     fn prescribed_default_keeps_blzsh_structure() {
         // The prescribed fleet default builds on the blzsh-parity base:
