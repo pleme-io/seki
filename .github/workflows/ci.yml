@@ -26,8 +26,8 @@ name: ci
 # `.github/runner.yml` pin cannot fix it either — runner-resolve's config-path
 # tier is read by the resolver, and the resolver is the job that never starts.
 #
-# So this shim calls cargo-ci.yml's OWN test leg directly, with an explicit
-# GitHub-hosted runner. mado's ci.yml sets the precedent for calling this
+# So this shim calls cargo-ci.yml's OWN test leg directly, and lets that
+# reusable route the runner by repo visibility. mado's ci.yml sets the precedent for calling this
 # reusable directly (its `release-tests` job). What that costs, stated rather
 # than glossed: no `nix flake check` leg, so `checks.build` (does the shipped
 # artifact compile under nix) is NOT covered here. gen-spec.yml already covers
@@ -40,6 +40,32 @@ name: ci
 # 22.04 dies instantly with a GLIBC error). seki has no tlisp gate today, but
 # the floor is a property of the fleet's tooling, not of this workflow's
 # current step list.
+
+#
+# ── CORRECTED 2026-08-08: the GitHub-hosted pin is GONE ─────────────────────
+#
+# Everything above is an accurate record of a real measurement, and the
+# conclusion drawn from it was wrong. The pool was not broken — camelot was
+# PARKED. `akeylesslabs/k8s` `clusters/camelot-eks/kustomization.yaml` carries
+# `components: [park]`, which floors the cluster to ~7% of its bill by setting
+# the ARC controller Deployment to `replicaCount: 0` and every runner scale set
+# to `maxRunners: 0`. Flux reports both ARC HelmReleases Ready/succeeded
+# because a zero-replica Deployment installs perfectly — so the cluster looks
+# healthy and serves nothing, and the symptom is silence rather than an error.
+# It was re-parked 2026-08-07 after a partial unpark drained exactly this kind
+# of private-repo queue.
+#
+# Routing around a parked pool onto `ubuntu-24.04` is what actually cost us:
+# on 2026-08-08 those pins exhausted the org's Actions spending limit, and
+# every private repo in pleme-io then refused to start any job at all. The
+# standing rule is closed-source -> Camelot CI in akeyless-development,
+# open-source -> free GitHub-hosted; a metered runner on a private repo is
+# never the answer. A job queued against a parked Camelot costs nothing and
+# runs the moment it is unparked. A metered job bills whether it passes or not.
+#
+# So this workflow routes through `pleme-io/actions/runner-resolve` like the
+# rest of the fleet. If jobs sit queued, the fix is to unpark camelot's CI
+# rungs (l5-ceilings, l4-operators, l1-ci — bottom-up), not to re-pin here.
 
 on:
   push:
@@ -86,7 +112,9 @@ jobs:
   cargo-test:
     uses: pleme-io/substrate/.github/workflows/nix-devshell-cargo-test.yml@main
     with:
-      runner: ubuntu-24.04
+      # No `runner:` — substrate's reusable now routes by caller repo
+      # visibility. This repo is PRIVATE, so it resolves to Camelot
+      # self-hosted instead of billing GitHub-hosted minutes.
       devshell: default
       test-args: "--workspace --no-fail-fast"
     secrets: inherit
