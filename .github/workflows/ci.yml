@@ -1,0 +1,92 @@
+name: ci
+
+# The test gate seki has never had.
+#
+# Until this file, .github/workflows/ held auto-release.yml and gen-spec.yml —
+# a publish path and a Cargo.gen.lock delta-freshness check. seki's 439 tests
+# across four crates had never been executed by CI, on any commit, ever, while
+# the repo published binaries on every merge to main.
+#
+# ── WHY THIS CONSUMES nix-devshell-cargo-test.yml AND NOT cargo-ci.yml ──────
+#
+# cargo-ci.yml is the fleet's fuller Rust reusable (flake-check + this same
+# test leg) and would be the default choice. It is STRUCTURALLY BLOCKED on
+# this repo today, and the blocker is in its bootstrap job:
+#
+#   cargo-ci.yml's `resolve-runner` job is pinned by a literal ternary —
+#     runs-on: ${{ github.event.repository.private && 'camelot-builder-pleme-eks' || 'ubuntu-latest' }}
+#   — because bootstrapping the runner resolver cannot call the resolver. seki
+#   is PRIVATE, so that job lands on the Camelot ARC pool, and every other job
+#   in the workflow `needs:` it.
+#
+# THIS REPO IS THE RECEIPT. seki's own run 31210151119 (auto-release, pushed
+# 2026-08-07T19:08Z) has had `Bump workspace + tag` and `Test gate` sitting
+# `queued` on `camelot-builder-pleme-eks` for 5h13m and counting. The pool is
+# not serving, and the symptom is silence rather than a failure. A
+# `.github/runner.yml` pin cannot fix it either — runner-resolve's config-path
+# tier is read by the resolver, and the resolver is the job that never starts.
+#
+# So this shim calls cargo-ci.yml's OWN test leg directly, with an explicit
+# GitHub-hosted runner. mado's ci.yml sets the precedent for calling this
+# reusable directly (its `release-tests` job). What that costs, stated rather
+# than glossed: no `nix flake check` leg, so `checks.build` (does the shipped
+# artifact compile under nix) is NOT covered here. gen-spec.yml already covers
+# Cargo.gen.lock freshness.
+#
+# ── ubuntu-24.04, NOT ubuntu-latest ────────────────────────────────────────
+#
+# Pinned rather than floating so this repo's CI floor is the same one the
+# fleet's tatara-script actions need (their release binary requires glibc 2.39;
+# 22.04 dies instantly with a GLIBC error). seki has no tlisp gate today, but
+# the floor is a property of the fleet's tooling, not of this workflow's
+# current step list.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # `cargo fmt --all -- --check` + `cargo test --workspace` inside `.#default`.
+  #
+  # MEASURED before wiring, because this reusable's own header records a case
+  # where it "reached" three consumers and ran the tests of ZERO of them — all
+  # three resolved `devShells.<sys>.default` to a devenv shell, which
+  # `nix develop` cannot enter non-interactively:
+  #
+  #   nix eval --raw .#devShells.aarch64-darwin.default.name  ->  nix-shell
+  #
+  # A plain mkShell, so this leg genuinely executes. (frost, adopting the same
+  # reusable in the same pass, measured `devenv-shell` on a stale substrate pin
+  # and needed a `nix flake update substrate` first. Re-measure if this flake's
+  # builder changes; do not assume.)
+  #
+  # NO SKIPS AND NO WAIVERS — measured 2026-08-08 on aarch64-darwin at 91f28e1:
+  #   cargo test --workspace --no-fail-fast   ->  exit 0
+  #   439 passed / 0 failed across 4 suites (299 + 80 + 43 + 17)
+  #   cargo fmt --all -- --check              ->  exit 0, clean
+  # This is a local run on one platform. It is NOT evidence about the Linux
+  # runner this workflow targets — a first-run platform failure is the gate
+  # doing its job, not a defect in the shim.
+  #
+  # `--all-features` is dropped from the reusable's default: seki declares no
+  # `[features]` in any member, so it would widen the subject set by zero tests
+  # while pulling the full optional dependency graph of `shikumi`.
+  #
+  # Private git deps: `shikumi` and `ishou` are both PUBLIC, so the reusable's
+  # credential step resolves to an empty rewrite — verified harmless (GitHub
+  # accepts an empty basic-auth password for public read; `ls-remote` through
+  # the same rewrite returns the ref). seki therefore needs no repo-level
+  # BOT_PAT, unlike frost.
+  cargo-test:
+    uses: pleme-io/substrate/.github/workflows/nix-devshell-cargo-test.yml@main
+    with:
+      runner: ubuntu-24.04
+      devshell: default
+      test-args: "--workspace --no-fail-fast"
+    secrets: inherit
