@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "c01fa9325ba5238e35c96a70da576912dc49190077d66c00b37d0b6c7f264d79",
+  "cargo_lock_sha256": "fc97f112d9b8b5f8b22b89de276821f659fdbf16828734ae68de42353cb73cfb",
   "manifest_sha256": {
-    "Cargo.toml": "817d8f50f0964a85958d15a53ba5532512330fac11a3812ff43c9677d59cd94a",
+    "Cargo.toml": "a6e237872480f2ac2b4c6eec29d203d480416ef3e23db995f0514b1ed8680672",
     "seki-core/Cargo.toml": "a4940218bec06d602b08f498142e4deb3262ab6a93bc5f8413c1ae32d3f86c89",
     "seki-modules/Cargo.toml": "b5661a0b19dd5db8cdd7683e877816f3e9148ddd0d884f25a514cc1cbdb7ffd8",
     "seki-shikumi/Cargo.toml": "b42c09011ed9e5e1d67dac168a8d7551ef4c64c527bde249b20cb9af99a5e82a",
@@ -1112,7 +1112,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "seki-0.1.15": {
+      "seki-0.1.16": {
         "runtime_dependencies": [
           {
             "name": "anyhow",
@@ -1148,7 +1148,7 @@
           },
           {
             "name": "seki_core",
-            "package_key": "seki-core-0.1.15",
+            "package_key": "seki-core-0.1.16",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1158,7 +1158,7 @@
           },
           {
             "name": "seki_modules",
-            "package_key": "seki-modules-0.1.15",
+            "package_key": "seki-modules-0.1.16",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1168,7 +1168,7 @@
           },
           {
             "name": "seki_shikumi",
-            "package_key": "seki-shikumi-0.1.15",
+            "package_key": "seki-shikumi-0.1.16",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1214,7 +1214,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "seki-core-0.1.15": {
+      "seki-core-0.1.16": {
         "runtime_dependencies": [
           {
             "name": "ishou_tokens",
@@ -1292,7 +1292,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "seki-modules-0.1.15": {
+      "seki-modules-0.1.16": {
         "runtime_dependencies": [
           {
             "name": "ishou_tokens",
@@ -1306,7 +1306,7 @@
           },
           {
             "name": "seki_core",
-            "package_key": "seki-core-0.1.15",
+            "package_key": "seki-core-0.1.16",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1360,7 +1360,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "seki-shikumi-0.1.15": {
+      "seki-shikumi-0.1.16": {
         "runtime_dependencies": [
           {
             "name": "ishou_tokens",
@@ -1374,7 +1374,7 @@
           },
           {
             "name": "seki_core",
-            "package_key": "seki-core-0.1.15",
+            "package_key": "seki-core-0.1.16",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3796,7 +3796,7 @@
     "same-file-1.0.6": {
       "edition": "2018"
     },
-    "seki-0.1.15": {
+    "seki-0.1.16": {
       "edition": "2024",
       "binaries": [
         {
@@ -3805,21 +3805,21 @@
         }
       ]
     },
-    "seki-core-0.1.15": {
+    "seki-core-0.1.16": {
       "edition": "2024",
       "lib_target": {
         "name": "seki_core",
         "path": "src/lib.rs"
       }
     },
-    "seki-modules-0.1.15": {
+    "seki-modules-0.1.16": {
       "edition": "2024",
       "lib_target": {
         "name": "seki_modules",
         "path": "src/lib.rs"
       }
     },
-    "seki-shikumi-0.1.15": {
+    "seki-shikumi-0.1.16": {
       "edition": "2024",
       "lib_target": {
         "name": "seki_shikumi",
