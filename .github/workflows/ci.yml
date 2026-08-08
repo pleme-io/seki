@@ -49,7 +49,8 @@ jobs:
   cargo-test:
     uses: pleme-io/substrate/.github/workflows/nix-devshell-cargo-test.yml@main
     with:
-      runner: ubuntu-24.04
+      # No `runner:` — substrate's reusable now routes by caller repo
+      # visibility.
       devshell: default
       test-args: "--workspace --no-fail-fast"
     secrets: inherit
