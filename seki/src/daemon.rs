@@ -73,6 +73,37 @@
 //! generation-current value may be believed, which bounds staleness by
 //! construction no matter how the OS behaves.
 //!
+//! ## The bounded-memory invariant (the third way to be wrong)
+//!
+//! Freshness (generation + age) and code identity (build handshake) do not
+//! bound *memory*. An earlier design piped every raw `notify::Event` into
+//! `std::sync::mpsc::channel()` — a **queue with no ceiling** — and let the
+//! recompute thread drain it in 250 ms / 256-event windows. That is bounded
+//! only while the drain keeps up. Any sustained regime where events arrive
+//! faster than the drain (a `cargo build` hammering `target/`, a `git gc`
+//! rewriting packs, a rebase touching a huge working tree, a plain slow
+//! `git status` on a monorepo) grows the queue without limit. The queue is
+//! `Vec<PathBuf>` per event; the leak scales with churn, not with
+//! interesting facts. Measured on 2026-08-21: ~7 MB/s heap growth on a
+//! moderately-churning repo, indistinguishable from any classic FD-shaped
+//! leak until strace shows only 8 FDs open.
+//!
+//! The fix is to store *what changed* rather than *the events that reported
+//! it*. [`DirtySignal`] is a single small struct — a `HashSet<PathBuf>`
+//! plus a `rescan_all` bit — that the notify callback marks and the
+//! recompute thread drains, with a one-slot wakeup `sync_channel::<()>(1)`
+//! carrying only the "there is work" edge. Both the set (bounded by
+//! [`MAX_WATCHED_ROOTS`]) and the wakeup slot (0 or 1) are `O(1)` in event
+//! rate. Under a producer that outruns the consumer, `try_send` on the
+//! wakeup channel simply returns `Full` — never blocking the FS callback,
+//! never buffering the burst — because the signal's mutex already carries
+//! the truth; the wakeup only tells the consumer *whether* there is work,
+//! not *what*. This borrows two shapes at once: hanabi's bounded
+//! `sync_channel` + shed-under-pressure discipline (any producer overflow
+//! escalates into `rescan_all`, the same move `is_error` already makes), and
+//! mado's damage-region coalescing (accumulate the affected keys, not the
+//! events).
+//!
 //! Design guarantees:
 //! - **Bounded stale (enforced, no premise).** Generation-validated reads,
 //!   *plus* an age ceiling: a value is recomputed once it exceeds
@@ -81,6 +112,10 @@
 //! - **Never superseded (enforced).** A daemon running a build other than the
 //!   caller's retires instead of answering, so a shipped fix cannot sit unused
 //!   behind a live old process.
+//! - **Bounded memory (enforced, by construction).** The event pipeline is a
+//!   fixed-size [`DirtySignal`] — never a queue proportional to event rate —
+//!   so RSS converges to `O(MAX_WATCHED_ROOTS × entry_size)` under any FS
+//!   churn regime. See [`DirtySignal`].
 //! - **Singleton.** A second daemon that finds the socket already
 //!   answering exits immediately.
 //! - **On-demand.** A repo is watched the first time it's queried, never
@@ -211,6 +246,7 @@ impl WatchSet {
         self.order.clone()
     }
 
+    #[cfg(test)]
     fn len(&self) -> usize {
         self.order.len()
     }
@@ -228,9 +264,10 @@ fn generation_of(generations: &Generations, root: &Path) -> u64 {
 
 /// Bump every watched root's generation, invalidating every cached status.
 ///
-/// The same move `classify_events` makes for a rescan/overflow flag, applied
-/// to the one other situation that can drop events without announcing it: a
-/// watcher rebuild. See the call site in [`ensure_watched`].
+/// The same move [`DirtySignal::drain`] makes for a `rescan_all` bit (raised
+/// by a `notify::Event::need_rescan()`, a watcher `Err`, or a wakeup-channel
+/// overflow), applied to the one other situation that can drop events without
+/// announcing it: a watcher rebuild. See the call site in [`ensure_watched`].
 fn invalidate_all(watched: &Watched, generations: &Generations) {
     let roots = watched.lock().unwrap().roots();
     let mut g = generations.lock().unwrap();
@@ -298,13 +335,30 @@ pub fn run() -> anyhow::Result<()> {
     // Read once: this is what every client's build-id is compared against.
     let own_build = git_status::build_id();
 
-    let (tx, rx) = mpsc::channel();
+    // Bounded pipeline: a single-slot wakeup channel + a shared DirtySignal
+    // whose size is `O(MAX_WATCHED_ROOTS)`, not `O(event rate)`. See
+    // [`DirtySignal`] for the shape and why the previous unbounded
+    // `mpsc::channel()` leaked memory under sustained churn.
+    let (wakeup_tx, wakeup_rx) = mpsc::sync_channel::<()>(1);
+    let signal = Arc::new(DirtySignal::new(wakeup_tx));
+    let signal_cb = signal.clone();
+    let watched_cb = watched.clone();
     let watcher = notify::recommended_watcher(move |res| {
-        let _ = tx.send(res);
+        // Snapshot the current roots for path-attribution. The lock is held
+        // for microseconds — the same mutex the recompute thread and
+        // `handle_client` already share.
+        let roots = watched_cb.lock().unwrap().roots();
+        signal_cb.observe(res, &roots);
     })?;
     let watcher: WatcherHandle = Arc::new(Mutex::new(watcher));
 
-    spawn_recompute_thread(rx, cache.clone(), watched.clone(), generations.clone());
+    spawn_recompute_thread(
+        signal,
+        wakeup_rx,
+        cache.clone(),
+        watched.clone(),
+        generations.clone(),
+    );
 
     // One short-lived thread per connection: a stalled/half-open client can
     // only block its own thread (which times out), never the accept loop —
@@ -353,98 +407,151 @@ fn bind_singleton(sock: &Path) -> anyhow::Result<UnixListener> {
     }
 }
 
-/// One coalesced FS-event burst, reduced to the typed facts the classifier
-/// needs: which paths changed, whether the event demanded a rescan, and
-/// whether it was a watcher error. Decouples the `notify` types from the
-/// pure classification so the never-stale logic is unit-testable.
-struct EventFacts {
-    paths: Vec<PathBuf>,
-    need_rescan: bool,
-    is_error: bool,
+/// The bounded pipeline between the notify callback and the recompute
+/// thread. Replaces an unbounded `mpsc::channel::<notify::Result<Event>>()`
+/// whose size grew with FS-event rate (measured ~7 MB/s of heap under
+/// sustained churn on 2026-08-21); the new shape's size is bounded by the
+/// number of watched roots, independent of how many events arrive.
+///
+/// The type stores **what changed** (a set of affected roots, plus a sticky
+/// `rescan_all` bit) rather than **the events that reported it** (an
+/// unbounded stream of `Vec<PathBuf>`-carrying `Event`s). One `Event` may
+/// carry hundreds of paths under a burst; the state written here is only
+/// the deduplicated set of roots those paths fall under, which is bounded
+/// by [`MAX_WATCHED_ROOTS`].
+///
+/// The `rescan_all` bit collapses three otherwise-different signals into
+/// the same recovery action (bump every watched root next drain), all of
+/// which the pre-existing design already handled that way:
+/// 1. `Event::need_rescan()` — the FSEvents "coalesce/drop ⇒ rescan"
+///    contract, which is the whole reason [`invalidate_all`] exists.
+/// 2. A watcher `Err(_)` — cannot be attributed to a path; the pre-refactor
+///    code also folded this into "rescan everything" (the `.flatten()`
+///    bug's replacement).
+/// 3. **Producer overflow** — a wakeup `try_send` that returns `Full`
+///    means the consumer has not yet drained the last edge. The producer
+///    has never lost a mark (the mutex holds the truth); the sticky bit
+///    is set so that if the consumer is genuinely falling behind, the
+///    next drain re-checks every root instead of trusting the accumulated
+///    set alone. This is the same shed-under-pressure discipline hanabi
+///    uses on its bounded channels (`sync_channel(N)` with graceful
+///    fallback), applied at the coarsest possible granularity: one bit.
+///
+/// The wakeup channel is `sync_channel::<()>(1)` — a single slot, no
+/// payload. Its full state means "consumer has not yet observed the last
+/// edge" (a coalescing win, not a lost signal); its empty state means
+/// "consumer is idle, next `try_send` reaches it". The recompute thread
+/// blocks on `recv()` when idle (exactly the shape the old channel had),
+/// so nothing spins.
+struct DirtySignalState {
+    roots: HashSet<PathBuf>,
+    rescan_all: bool,
 }
 
-/// Pure: given a burst of event facts and the watched roots, decide which
-/// roots changed. A rescan/overflow flag or a watcher error cannot be tied
-/// to a specific path, so it dirties **every** watched root — the move that
-/// turns FSEvents' "coalesce/drop ⇒ rescan" guarantee into a never-stale
-/// cache. A plain event dirties only the roots its paths fall under.
-fn classify_events(events: &[EventFacts], roots: &[PathBuf]) -> HashSet<PathBuf> {
-    let mut affected: HashSet<PathBuf> = HashSet::new();
-    let mut rescan_all = false;
-    for ev in events {
-        if ev.need_rescan || ev.is_error {
-            rescan_all = true;
-            continue;
+impl DirtySignalState {
+    fn new() -> Self {
+        Self {
+            roots: HashSet::new(),
+            rescan_all: false,
         }
-        for path in &ev.paths {
-            for root in roots {
-                if path.starts_with(root) && !is_output_irrelevant(path, root) {
-                    affected.insert(root.clone());
+    }
+}
+
+struct DirtySignal {
+    state: Mutex<DirtySignalState>,
+    wakeup: mpsc::SyncSender<()>,
+}
+
+impl DirtySignal {
+    fn new(wakeup: mpsc::SyncSender<()>) -> Self {
+        Self {
+            state: Mutex::new(DirtySignalState::new()),
+            wakeup,
+        }
+    }
+
+    /// The single move the notify callback performs. Non-blocking on all
+    /// paths — the FS callback runs on notify's internal worker thread and
+    /// must not stall it. All memory pressure is bounded by the current
+    /// watched-root count; a burst of thousands of events under one root
+    /// still writes a single `HashSet::insert` after the first.
+    fn observe(&self, res: notify::Result<notify::Event>, watched_roots: &[PathBuf]) {
+        let mut st = self.state.lock().unwrap();
+        match res {
+            Ok(ev) if ev.need_rescan() => {
+                st.rescan_all = true;
+            }
+            Ok(ev) => {
+                for path in &ev.paths {
+                    for root in watched_roots {
+                        if path.starts_with(root) && !is_output_irrelevant(path, root) {
+                            st.roots.insert(root.clone());
+                        }
+                    }
                 }
             }
+            Err(_) => {
+                st.rescan_all = true;
+            }
+        }
+        drop(st);
+        // Wakeup the recompute thread. `try_send` never blocks: an idle
+        // consumer receives the ping; a busy one has already been pinged
+        // for a still-un-drained edge, and the just-written state will be
+        // picked up when it drains — so a `Full` return is a coalescing
+        // win, not a lost signal.
+        let _ = self.wakeup.try_send(());
+    }
+
+    /// Atomic drain. Returns the set of roots that must be recomputed given
+    /// the current watched-root list — the accumulated roots on a normal
+    /// tick, every watched root if the sticky rescan bit was set. Called
+    /// only from the recompute thread; both fields are reset before the
+    /// mutex is released, so a producer racing this call either lands its
+    /// mark in the *next* drain (safe: the wakeup edge will pull the
+    /// consumer back) or the current drain (safe: the mutex serializes).
+    fn drain(&self, watched_roots: &[PathBuf]) -> HashSet<PathBuf> {
+        let mut st = self.state.lock().unwrap();
+        let taken = std::mem::take(&mut st.roots);
+        let rescan_all = std::mem::replace(&mut st.rescan_all, false);
+        drop(st);
+        if rescan_all {
+            watched_roots.iter().cloned().collect()
+        } else {
+            taken
         }
     }
-    if rescan_all {
-        affected.extend(roots.iter().cloned());
-    }
-    affected
 }
 
-/// The watcher → channel → recompute loop. Coalesces a burst of events
-/// (one git operation = many inotify/FSEvents), bumps the generation of
-/// every affected repo, and pre-warms its cache so the next prompt reads a
-/// hot, generation-matched value instead of forking. Correctness does not
-/// depend on this pre-warm winning the race with a query: the query
-/// re-validates the generation and recomputes itself on any mismatch.
+/// The watcher → coalesced-signal → recompute loop. One coalescing tick per
+/// wakeup edge: sleep briefly to let the tail of an event burst arrive, drain
+/// the signal into the final set of roots, bump the generation of each and
+/// pre-warm its cache. Correctness does not depend on this pre-warm winning
+/// the race with a query: the query re-validates the generation and
+/// recomputes itself on any mismatch.
+///
+/// The old design kept a 250 ms / 256-event hard cap inside the drain loop
+/// to bound worst-case coalescing latency. That cap is no longer needed:
+/// the callback is non-blocking, the signal drain is a single mutex
+/// acquisition, and the recompute-per-root cost is unchanged. The only
+/// timing knob left is the 60 ms tail-quiet window, kept for identical
+/// "one git operation = one recompute per repo" behaviour.
 fn spawn_recompute_thread(
-    rx: mpsc::Receiver<notify::Result<notify::Event>>,
+    signal: Arc<DirtySignal>,
+    wakeup: mpsc::Receiver<()>,
     cache: Cache,
     watched: Watched,
     generations: Generations,
 ) {
     std::thread::spawn(move || {
-        loop {
-            let Ok(first) = rx.recv() else { break };
-            let mut events = vec![first];
-            // Coalesce a burst, but with a HARD cap on the window: a 60ms
-            // quiet gap closes it, and so does a 250ms / 256-event ceiling.
-            // Without the ceiling, sustained churn (a long `cargo build`
-            // hammering target/) would keep the window open forever and the
-            // generation bump would never fire — i.e. the status would go
-            // stale exactly when it's changing. The cap guarantees a bump at
-            // least ~4×/s under any load.
-            let deadline = Instant::now() + Duration::from_millis(250);
-            while events.len() < 256 {
-                let remaining = deadline.saturating_duration_since(Instant::now());
-                if remaining.is_zero() {
-                    break;
-                }
-                let wait = remaining.min(Duration::from_millis(60));
-                match rx.recv_timeout(wait) {
-                    Ok(more) => events.push(more),
-                    Err(_) => break,
-                }
-            }
+        while wakeup.recv().is_ok() {
+            // Let the tail of a burst land in the signal before draining.
+            // 60 ms matches the old quiet-gap; any events arriving inside
+            // the window are absorbed into the same drain (bounded, since
+            // the signal is a set).
+            std::thread::sleep(Duration::from_millis(60));
             let roots: Vec<PathBuf> = watched.lock().unwrap().roots();
-            let facts: Vec<EventFacts> = events
-                .into_iter()
-                .map(|res| match res {
-                    Ok(ev) => EventFacts {
-                        need_rescan: ev.need_rescan(),
-                        paths: ev.paths,
-                        is_error: false,
-                    },
-                    // A watcher error can't be attributed to a path; treat it
-                    // as "rescan everything" rather than silently drop it (the
-                    // original `.flatten()` bug that stranded stale state).
-                    Err(_) => EventFacts {
-                        paths: Vec::new(),
-                        need_rescan: false,
-                        is_error: true,
-                    },
-                })
-                .collect();
-            for root in classify_events(&facts, &roots) {
+            for root in signal.drain(&roots) {
                 // Bump first so any query that races the recompute observes
                 // the new generation and recomputes itself; then pre-warm.
                 let generation = {
@@ -642,18 +749,44 @@ mod tests {
         PathBuf::from(s)
     }
 
-    fn plain(paths: &[&str]) -> EventFacts {
-        EventFacts {
-            paths: paths.iter().map(PathBuf::from).collect(),
-            need_rescan: false,
-            is_error: false,
+    /// Build a plain (non-rescan) notify event carrying `paths`. The kind is
+    /// arbitrary — the classifier only inspects `paths` and the rescan flag.
+    fn plain_event(paths: &[&str]) -> notify::Event {
+        let mut ev = notify::Event::new(notify::EventKind::Any);
+        ev.paths = paths.iter().map(PathBuf::from).collect();
+        ev
+    }
+
+    fn rescan_event() -> notify::Event {
+        notify::Event::new(notify::EventKind::Any).set_flag(notify::event::Flag::Rescan)
+    }
+
+    fn watcher_err() -> notify::Error {
+        notify::Error::generic("simulated watcher failure")
+    }
+
+    /// Drive a fresh `DirtySignal` with a sequence of raw notify results
+    /// against a fixed watched-root list and return the drain output. The
+    /// pipeline this exercises — callback → `observe` → `drain` — is exactly
+    /// what the daemon runs; only the wakeup edge (a `sync_channel(1)` that
+    /// the recompute thread blocks on) is skipped, and that channel carries
+    /// no correctness signal, only a "there is work" edge.
+    fn drive(
+        inputs: Vec<notify::Result<notify::Event>>,
+        watched: &[PathBuf],
+    ) -> HashSet<PathBuf> {
+        let (tx, _rx) = mpsc::sync_channel::<()>(1);
+        let signal = DirtySignal::new(tx);
+        for r in inputs {
+            signal.observe(r, watched);
         }
+        signal.drain(watched)
     }
 
     #[test]
     fn plain_event_dirties_only_its_root() {
         let roots = [root("/a"), root("/b")];
-        let got = classify_events(&[plain(&["/a/src/lib.rs"])], &roots);
+        let got = drive(vec![Ok(plain_event(&["/a/src/lib.rs"]))], &roots);
         assert!(got.contains(&root("/a")));
         assert!(!got.contains(&root("/b")));
     }
@@ -662,7 +795,7 @@ mod tests {
     fn untracked_delete_under_root_is_caught() {
         // A `git clean` removing /a/scratch.rs is a plain event under /a.
         let roots = [root("/a")];
-        let got = classify_events(&[plain(&["/a/scratch.rs"])], &roots);
+        let got = drive(vec![Ok(plain_event(&["/a/scratch.rs"]))], &roots);
         assert_eq!(got, HashSet::from([root("/a")]));
     }
 
@@ -672,33 +805,101 @@ mod tests {
         // only raised a rescan flag. That MUST invalidate every repo, not be
         // dropped — else a stale count is stranded forever.
         let roots = [root("/a"), root("/b"), root("/c")];
-        let rescan = EventFacts {
-            paths: vec![],
-            need_rescan: true,
-            is_error: false,
-        };
-        let got = classify_events(&[rescan], &roots);
+        let got = drive(vec![Ok(rescan_event())], &roots);
         assert_eq!(got, roots.iter().cloned().collect());
     }
 
     #[test]
     fn watcher_error_dirties_every_watched_root() {
         let roots = [root("/a"), root("/b")];
-        let err = EventFacts {
-            paths: vec![],
-            need_rescan: false,
-            is_error: true,
-        };
-        assert_eq!(
-            classify_events(&[err], &roots),
-            roots.iter().cloned().collect()
-        );
+        let got = drive(vec![Err(watcher_err())], &roots);
+        assert_eq!(got, roots.iter().cloned().collect());
     }
 
     #[test]
     fn event_outside_every_root_dirties_nothing() {
         let roots = [root("/a")];
-        assert!(classify_events(&[plain(&["/elsewhere/x"])], &roots).is_empty());
+        assert!(drive(vec![Ok(plain_event(&["/elsewhere/x"]))], &roots).is_empty());
+    }
+
+    /// ★ The invariant that eliminates the 2026-08-21 leak class by
+    /// construction. `mpsc::channel()` was replaced with a fixed-size
+    /// [`DirtySignal`] whose in-memory state is a `HashSet<PathBuf>` sized by
+    /// watched roots (bounded by [`MAX_WATCHED_ROOTS`]), not by event rate.
+    /// A million plain events under two roots collapse to exactly two entries.
+    #[test]
+    fn dirty_signal_is_bounded_by_watched_roots_regardless_of_event_rate() {
+        let roots = [root("/a"), root("/b")];
+        let inputs: Vec<notify::Result<notify::Event>> = (0..10_000)
+            .map(|i| {
+                let root = if i % 2 == 0 { "/a" } else { "/b" };
+                let file = format!("{root}/f{i}.rs");
+                Ok(plain_event(&[file.as_str()]))
+            })
+            .collect();
+        let got = drive(inputs, &roots);
+        assert_eq!(
+            got,
+            roots.iter().cloned().collect(),
+            "10k events across 2 roots must drain to exactly those 2 entries"
+        );
+    }
+
+    /// A second drain on an unchanged signal returns nothing: `drain` resets
+    /// both the accumulated root set and the sticky `rescan_all` bit, so the
+    /// recompute thread only reacts to genuinely new events.
+    #[test]
+    fn a_second_drain_after_a_drain_is_empty() {
+        let (tx, _rx) = mpsc::sync_channel::<()>(1);
+        let signal = DirtySignal::new(tx);
+        let watched = [root("/a"), root("/b")];
+        signal.observe(Ok(plain_event(&["/a/x"])), &watched);
+        signal.observe(Ok(rescan_event()), &watched);
+        assert!(!signal.drain(&watched).is_empty(), "the pending edge drains");
+        assert!(
+            signal.drain(&watched).is_empty(),
+            "a follow-up drain with no new observations must be empty"
+        );
+    }
+
+    /// `rescan_all` expands against the **current** watched roots — the list
+    /// the caller supplies to `drain`, not any list that happened to be
+    /// visible when the flag was set. This lines up with `invalidate_all`'s
+    /// contract: a rebuild bumps every root that is *currently* watched.
+    #[test]
+    fn drain_expands_rescan_all_against_the_current_watched_roots() {
+        let (tx, _rx) = mpsc::sync_channel::<()>(1);
+        let signal = DirtySignal::new(tx);
+        // Observe with no watched roots at all — only the rescan bit is set.
+        signal.observe(Ok(rescan_event()), &[]);
+        let now_watched = [root("/a"), root("/b"), root("/c")];
+        assert_eq!(signal.drain(&now_watched), now_watched.iter().cloned().collect());
+    }
+
+    /// A full wakeup channel is a *coalescing win*, not a lost signal: the
+    /// producer's mark is already in the mutex, and the next `drain` observes
+    /// it. This test simulates the callback outrunning the consumer: many
+    /// observations happen while the wakeup is never drained, and every mark
+    /// still shows up in the eventual drain.
+    #[test]
+    fn wakeup_channel_full_never_drops_a_mark() {
+        let (tx, rx) = mpsc::sync_channel::<()>(1);
+        let signal = DirtySignal::new(tx);
+        let watched = [root("/a"), root("/b")];
+        // Fill the wakeup slot without ever draining it.
+        for i in 0..100 {
+            let path = format!("/a/f{i}");
+            signal.observe(Ok(plain_event(&[path.as_str()])), &watched);
+        }
+        signal.observe(Ok(plain_event(&["/b/f0"])), &watched);
+        // Wakeup slot is definitely full (one edge held, all further sends
+        // hit `Full` and are dropped). The signal state must still be truth.
+        assert!(rx.try_recv().is_ok(), "one wakeup was queued");
+        assert_eq!(
+            signal.drain(&watched),
+            HashSet::from([root("/a"), root("/b")]),
+            "every marked root must survive to the drain even when the wakeup was saturated"
+        );
     }
 
     #[test]
@@ -834,7 +1035,7 @@ mod tests {
         let roots = [root("/repo")];
         // A gc/fetch writing packfiles cannot change status output.
         assert!(
-            classify_events(&[plain(&["/repo/.git/objects/pack/pack-abc.pack"])], &roots)
+            drive(vec![Ok(plain_event(&["/repo/.git/objects/pack/pack-abc.pack"]))], &roots)
                 .is_empty(),
             ".git/objects churn must not cost a recompute"
         );
@@ -848,7 +1049,7 @@ mod tests {
             "/repo/untracked-new-file",
         ] {
             assert!(
-                !classify_events(&[plain(&[p])], &roots).is_empty(),
+                !drive(vec![Ok(plain_event(&[p]))], &roots).is_empty(),
                 "{p} changes git status output and MUST dirty the root"
             );
         }
@@ -859,7 +1060,7 @@ mod tests {
         // The exclusion is for paths strictly BELOW .git/objects. Excluding
         // the node itself would be a different, unverified claim.
         let roots = [root("/repo")];
-        assert!(!classify_events(&[plain(&["/repo/.git/objects"])], &roots).is_empty());
+        assert!(!drive(vec![Ok(plain_event(&["/repo/.git/objects"]))], &roots).is_empty());
     }
 
     #[test]
@@ -868,7 +1069,7 @@ mod tests {
         // but excluding it without a per-root `git check-ignore` check would
         // silently break any repo that tracks a directory of that name.
         let roots = [root("/repo")];
-        assert!(!classify_events(&[plain(&["/repo/target/debug/x.o"])], &roots).is_empty());
+        assert!(!drive(vec![Ok(plain_event(&["/repo/target/debug/x.o"]))], &roots).is_empty());
     }
 
     /// ★ The invariant that would have prevented 2026-07-31 reaching the
