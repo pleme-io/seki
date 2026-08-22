@@ -771,10 +771,7 @@ mod tests {
     /// what the daemon runs; only the wakeup edge (a `sync_channel(1)` that
     /// the recompute thread blocks on) is skipped, and that channel carries
     /// no correctness signal, only a "there is work" edge.
-    fn drive(
-        inputs: Vec<notify::Result<notify::Event>>,
-        watched: &[PathBuf],
-    ) -> HashSet<PathBuf> {
+    fn drive(inputs: Vec<notify::Result<notify::Event>>, watched: &[PathBuf]) -> HashSet<PathBuf> {
         let (tx, _rx) = mpsc::sync_channel::<()>(1);
         let signal = DirtySignal::new(tx);
         for r in inputs {
@@ -855,7 +852,10 @@ mod tests {
         let watched = [root("/a"), root("/b")];
         signal.observe(Ok(plain_event(&["/a/x"])), &watched);
         signal.observe(Ok(rescan_event()), &watched);
-        assert!(!signal.drain(&watched).is_empty(), "the pending edge drains");
+        assert!(
+            !signal.drain(&watched).is_empty(),
+            "the pending edge drains"
+        );
         assert!(
             signal.drain(&watched).is_empty(),
             "a follow-up drain with no new observations must be empty"
@@ -873,7 +873,10 @@ mod tests {
         // Observe with no watched roots at all — only the rescan bit is set.
         signal.observe(Ok(rescan_event()), &[]);
         let now_watched = [root("/a"), root("/b"), root("/c")];
-        assert_eq!(signal.drain(&now_watched), now_watched.iter().cloned().collect());
+        assert_eq!(
+            signal.drain(&now_watched),
+            now_watched.iter().cloned().collect()
+        );
     }
 
     /// A full wakeup channel is a *coalescing win*, not a lost signal: the
@@ -1035,8 +1038,11 @@ mod tests {
         let roots = [root("/repo")];
         // A gc/fetch writing packfiles cannot change status output.
         assert!(
-            drive(vec![Ok(plain_event(&["/repo/.git/objects/pack/pack-abc.pack"]))], &roots)
-                .is_empty(),
+            drive(
+                vec![Ok(plain_event(&["/repo/.git/objects/pack/pack-abc.pack"]))],
+                &roots
+            )
+            .is_empty(),
             ".git/objects churn must not cost a recompute"
         );
         // Everything that CAN change the output must still get through.
