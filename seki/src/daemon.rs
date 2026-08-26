@@ -93,8 +93,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 use notify::{RecursiveMode, Watcher};
@@ -298,13 +297,22 @@ pub fn run() -> anyhow::Result<()> {
     // Read once: this is what every client's build-id is compared against.
     let own_build = git_status::build_id();
 
-    let (tx, rx) = mpsc::channel();
-    let watcher = notify::recommended_watcher(move |res| {
-        let _ = tx.send(res);
-    })?;
+    // ★ The callback CLASSIFIES; it never queues. See [`Pending`] for why the
+    // buffer that used to sit here was the daemon's only unbounded resource.
+    //
+    // Lock order, and it is load-bearing: this closure takes `watched` then
+    // `mailbox`, and MUST NOT take `watcher` — `ensure_watched` holds the
+    // watcher lock across `.watch()`, and on the FSEvents backend that call
+    // drives the very run loop this closure is invoked from. Taking `watcher`
+    // here would close the cycle and deadlock the daemon.
+    let mailbox: Mailbox = Arc::new((Mutex::new(Pending::default()), Condvar::new()));
+    let watcher = {
+        let (mailbox, watched) = (mailbox.clone(), watched.clone());
+        notify::recommended_watcher(move |res| absorb(&mailbox, &watched, res))?
+    };
     let watcher: WatcherHandle = Arc::new(Mutex::new(watcher));
 
-    spawn_recompute_thread(rx, cache.clone(), watched.clone(), generations.clone());
+    spawn_recompute_thread(mailbox, cache.clone(), watched.clone(), generations.clone());
 
     // One short-lived thread per connection: a stalled/half-open client can
     // only block its own thread (which times out), never the accept loop —
@@ -390,61 +398,159 @@ fn classify_events(events: &[EventFacts], roots: &[PathBuf]) -> HashSet<PathBuf>
     affected
 }
 
-/// The watcher → channel → recompute loop. Coalesces a burst of events
+/// A 60ms gap with no new event closes the coalescing window.
+const QUIET_GAP: Duration = Duration::from_millis(60);
+/// …and 250ms closes it regardless, so sustained churn still gets a bump at
+/// least ~4×/s rather than starving behind a window that never goes quiet.
+const MAX_COALESCE: Duration = Duration::from_millis(250);
+
+/// The buffer between notify's callback and the recompute thread.
+///
+/// ★ THIS TYPE IS THE FIX FOR A 31.8 GB LEAK (plo, 2026-08-26). It used to be
+/// an `mpsc::channel()` — std's is UNBOUNDED — carrying whole `notify::Event`s,
+/// each holding a `Vec<PathBuf>`. notify's inotify thread fills it at kernel
+/// speed while this daemon's consumer drains it at the speed of forking
+/// `git status`, so under a `tend daemon --fetch` sweep across 386 repos the
+/// queue grew at ~5.8 MB/s until the kernel OOM-killed the machine — twice.
+///
+/// Every OTHER resource in this file was already carefully bounded (the
+/// [`WatchSet`] at [`MAX_WATCHED_ROOTS`], the coalescing window at 250ms). The
+/// buffer BETWEEN the bounded producer and the bounded consumer was the one
+/// thing left unbounded, which is the shape to look for elsewhere.
+///
+/// The fix is to delete the queue rather than size it, because the consumer
+/// provably discards everything it stored: [`classify_events`] reduces an
+/// entire burst to a set of watched ROOTS plus one sticky rescan flag, and the
+/// event payloads die there. So classification moves into the callback and
+/// only its *result* is kept:
+///
+/// * `dirty`'s key space IS the watch set, capped at [`MAX_WATCHED_ROOTS`], so
+///   this is bounded at 24 entries by construction at any event rate, forever.
+///   A 25th entry has no code path. There is no capacity constant to tune.
+/// * `rescan_all` is idempotent by type: a million overflow events cost one
+///   bool, so the storm case is the cheap case.
+/// * The payload is dropped at the producer, which also moves
+///   [`is_output_irrelevant`] there — so a fetch's packfile churn, which is
+///   almost all of the real-world firehose, is now discarded before it is ever
+///   allocated instead of after it has been queued.
+///
+/// Deliberately NOT a bounded channel with a blocking send: that parks notify's
+/// event-loop thread, which stops draining the inotify fd, which overflows the
+/// KERNEL queue — turning a memory problem into dropped events plus a rescan
+/// fork-storm. Absorbing is O(roots) with no I/O, so the callback never blocks.
+#[derive(Default)]
+struct Pending {
+    /// Watched roots known to have changed. Bounded by the watch set.
+    dirty: HashSet<PathBuf>,
+    /// A rescan/overflow/watcher-error was seen: dirty EVERY watched root.
+    rescan_all: bool,
+    /// Bumped on every absorb, so the recompute thread can detect quiet
+    /// without holding the lock or counting events.
+    seq: u64,
+}
+
+type Mailbox = Arc<(Mutex<Pending>, Condvar)>;
+
+/// Classify one event against the current watch set and fold it into the
+/// mailbox. Runs ON notify's callback thread — cheap, non-blocking, no I/O.
+fn absorb(mailbox: &Mailbox, watched: &Watched, res: notify::Result<notify::Event>) {
+    let facts = match res {
+        Ok(ev) => EventFacts {
+            need_rescan: ev.need_rescan(),
+            paths: ev.paths,
+            is_error: false,
+        },
+        // A watcher error can't be attributed to a path; treat it as "rescan
+        // everything" rather than silently drop it (the original `.flatten()`
+        // bug that stranded stale state).
+        Err(_) => EventFacts {
+            paths: Vec::new(),
+            need_rescan: false,
+            is_error: true,
+        },
+    };
+    let roots = watched.lock().unwrap().roots();
+    let (lock, cv) = &**mailbox;
+    let mut pending = lock.lock().unwrap();
+    pending.seq = pending.seq.wrapping_add(1);
+    if facts.need_rescan || facts.is_error {
+        // Sticky, and resolved against the watch set at DRAIN time — the set
+        // may change between now and then.
+        pending.rescan_all = true;
+    } else {
+        // Exactly the attribution the classifier tests pin, one event at a
+        // time. Bounded: the result is a subset of `roots`.
+        pending
+            .dirty
+            .extend(classify_events(std::slice::from_ref(&facts), &roots));
+    }
+    cv.notify_one();
+}
+
+/// Pure: resolve a drained mailbox against the CURRENT watch set.
+///
+/// ★ Decoupling absorb from drain creates one hazard the old channel loop
+/// could not have. `classify_events` could only ever emit roots from the slice
+/// handed to it, so an evicted root could never be dirtied. The mailbox CAN
+/// hold a root that `ensure_watched` evicted in between — and that site
+/// removes the cached status and generation deliberately, so an unwatched repo
+/// "leaves nothing behind that could later be served stale". Recomputing one
+/// here would resurrect exactly the entry the eviction just retired, unwatched
+/// and therefore never invalidated again. Hence the filter.
+fn drain_targets(dirty: HashSet<PathBuf>, rescan_all: bool, roots: &[PathBuf]) -> HashSet<PathBuf> {
+    let mut targets: HashSet<PathBuf> = HashSet::new();
+    if rescan_all {
+        targets.extend(roots.iter().cloned());
+    }
+    targets.extend(dirty.into_iter().filter(|r| roots.contains(r)));
+    targets
+}
+
+/// The watcher → mailbox → recompute loop. Coalesces a burst of events
 /// (one git operation = many inotify/FSEvents), bumps the generation of
 /// every affected repo, and pre-warms its cache so the next prompt reads a
 /// hot, generation-matched value instead of forking. Correctness does not
 /// depend on this pre-warm winning the race with a query: the query
 /// re-validates the generation and recomputes itself on any mismatch.
 fn spawn_recompute_thread(
-    rx: mpsc::Receiver<notify::Result<notify::Event>>,
+    mailbox: Mailbox,
     cache: Cache,
     watched: Watched,
     generations: Generations,
 ) {
     std::thread::spawn(move || {
+        let (lock, cv) = &*mailbox;
         loop {
-            let Ok(first) = rx.recv() else { break };
-            let mut events = vec![first];
-            // Coalesce a burst, but with a HARD cap on the window: a 60ms
-            // quiet gap closes it, and so does a 250ms / 256-event ceiling.
-            // Without the ceiling, sustained churn (a long `cargo build`
-            // hammering target/) would keep the window open forever and the
-            // generation bump would never fire — i.e. the status would go
-            // stale exactly when it's changing. The cap guarantees a bump at
-            // least ~4×/s under any load.
-            let deadline = Instant::now() + Duration::from_millis(250);
-            while events.len() < 256 {
-                let remaining = deadline.saturating_duration_since(Instant::now());
-                if remaining.is_zero() {
-                    break;
-                }
-                let wait = remaining.min(Duration::from_millis(60));
-                match rx.recv_timeout(wait) {
-                    Ok(more) => events.push(more),
-                    Err(_) => break,
+            // Sleep until there is something to do.
+            {
+                let mut pending = lock.lock().unwrap();
+                while pending.dirty.is_empty() && !pending.rescan_all {
+                    pending = cv.wait(pending).unwrap();
                 }
             }
+            // Let the burst settle: a 60ms quiet gap closes the window, and
+            // 250ms closes it regardless. Unlike the old channel loop this is
+            // a pure LATENCY choice — memory no longer depends on it, because
+            // absorbing a millionth event costs nothing.
+            let deadline = Instant::now() + MAX_COALESCE;
+            let mut last_seq = lock.lock().unwrap().seq;
+            while Instant::now() < deadline {
+                std::thread::sleep(QUIET_GAP);
+                let seq = lock.lock().unwrap().seq;
+                if seq == last_seq {
+                    break;
+                }
+                last_seq = seq;
+            }
+            let (dirty, rescan_all) = {
+                let mut pending = lock.lock().unwrap();
+                (
+                    std::mem::take(&mut pending.dirty),
+                    std::mem::replace(&mut pending.rescan_all, false),
+                )
+            };
             let roots: Vec<PathBuf> = watched.lock().unwrap().roots();
-            let facts: Vec<EventFacts> = events
-                .into_iter()
-                .map(|res| match res {
-                    Ok(ev) => EventFacts {
-                        need_rescan: ev.need_rescan(),
-                        paths: ev.paths,
-                        is_error: false,
-                    },
-                    // A watcher error can't be attributed to a path; treat it
-                    // as "rescan everything" rather than silently drop it (the
-                    // original `.flatten()` bug that stranded stale state).
-                    Err(_) => EventFacts {
-                        paths: Vec::new(),
-                        need_rescan: false,
-                        is_error: true,
-                    },
-                })
-                .collect();
-            for root in classify_events(&facts, &roots) {
+            for root in drain_targets(dirty, rescan_all, &roots) {
                 // Bump first so any query that races the recompute observes
                 // the new generation and recomputes itself; then pre-warm.
                 let generation = {
@@ -909,5 +1015,124 @@ mod tests {
         w.insert(root("/b"));
         assert_eq!(w.insert(root("/a")), None);
         assert_eq!(w.len(), 2);
+    }
+
+    // ── The mailbox bound ────────────────────────────────────────────────
+    //
+    // ★ These assert on `Pending`, never on RSS. RSS is allocator- and
+    // platform-dependent and tells you nothing about WHY it grew; the mailbox's
+    // size IS the invariant and the 31.8 GB was merely its consequence.
+    //
+    // RED RUN (do this before trusting them): make `absorb` push into a Vec
+    // instead of folding into the set, and `a_flood_on_one_root_costs_one_entry`
+    // must fail with 100000 != 1. A bound test that cannot be made to fail
+    // measures nothing.
+
+    fn mailbox_over(roots: &[&str]) -> (Mailbox, Watched) {
+        let watched: Watched = Arc::new(Mutex::new(WatchSet::new(MAX_WATCHED_ROOTS)));
+        {
+            let mut w = watched.lock().unwrap();
+            for r in roots {
+                w.insert(root(r));
+            }
+        }
+        let mailbox: Mailbox = Arc::new((Mutex::new(Pending::default()), Condvar::new()));
+        (mailbox, watched)
+    }
+
+    fn touch(paths: &[&str]) -> notify::Result<notify::Event> {
+        let mut e = notify::Event::new(notify::EventKind::Any);
+        for p in paths {
+            e = e.add_path(PathBuf::from(p));
+        }
+        Ok(e)
+    }
+
+    fn rescan() -> notify::Result<notify::Event> {
+        Ok(notify::Event::new(notify::EventKind::Any).set_flag(notify::event::Flag::Rescan))
+    }
+
+    fn snapshot(mailbox: &Mailbox) -> (usize, bool) {
+        let p = mailbox.0.lock().unwrap();
+        (p.dirty.len(), p.rescan_all)
+    }
+
+    const FLOOD: usize = 100_000;
+
+    #[test]
+    fn a_flood_on_one_root_costs_one_entry() {
+        // The incident, in miniature: an unbounded queue grew one entry per
+        // event. The mailbox keys by watched root, so it cannot.
+        let (mailbox, watched) = mailbox_over(&["/a", "/b"]);
+        for _ in 0..FLOOD {
+            absorb(&mailbox, &watched, touch(&["/a/src/lib.rs"]));
+        }
+        assert_eq!(snapshot(&mailbox), (1, false));
+    }
+
+    #[test]
+    fn dirty_can_never_exceed_the_watch_set() {
+        // Includes paths under NO watched root, which must be attributed
+        // nowhere rather than growing the set.
+        let roots: Vec<String> = (0..MAX_WATCHED_ROOTS).map(|i| format!("/r{i}")).collect();
+        let refs: Vec<&str> = roots.iter().map(String::as_str).collect();
+        let (mailbox, watched) = mailbox_over(&refs);
+        for i in 0..FLOOD {
+            let p = format!("/r{}/f{}", i % MAX_WATCHED_ROOTS, i);
+            absorb(&mailbox, &watched, touch(&[&p, "/unwatched/elsewhere"]));
+        }
+        let (len, _) = snapshot(&mailbox);
+        assert_eq!(len, MAX_WATCHED_ROOTS);
+        assert!(len <= MAX_WATCHED_ROOTS);
+    }
+
+    #[test]
+    fn packfile_churn_is_discarded_at_the_producer() {
+        // plo's real firehose: `tend daemon --fetch` across 386 repos writes
+        // .git/objects/pack/tmp_pack_*. seki always KNEW these were irrelevant
+        // — it just filtered them after allocating and queueing them.
+        let (mailbox, watched) = mailbox_over(&["/a"]);
+        for i in 0..FLOOD {
+            let p = format!("/a/.git/objects/pack/tmp_pack_{i}");
+            absorb(&mailbox, &watched, touch(&[&p]));
+        }
+        assert_eq!(snapshot(&mailbox), (0, false), "objects/ must cost nothing");
+    }
+
+    #[test]
+    fn a_storm_of_rescans_costs_one_bool() {
+        let (mailbox, watched) = mailbox_over(&["/a", "/b"]);
+        for _ in 0..FLOOD {
+            absorb(&mailbox, &watched, rescan());
+        }
+        // Sticky flag, zero per-event cost — the storm case is the cheap case.
+        assert_eq!(snapshot(&mailbox), (0, true));
+    }
+
+    #[test]
+    fn a_watcher_error_dirties_every_root_at_drain() {
+        let (mailbox, watched) = mailbox_over(&["/a", "/b"]);
+        absorb(&mailbox, &watched, Err(notify::Error::generic("boom")));
+        let (_, rescan_all) = snapshot(&mailbox);
+        assert!(rescan_all, "an error must not be silently dropped");
+        let roots = watched.lock().unwrap().roots();
+        assert_eq!(
+            drain_targets(HashSet::new(), rescan_all, &roots).len(),
+            2,
+            "rescan resolves against the watch set at drain time"
+        );
+    }
+
+    #[test]
+    fn an_evicted_root_is_not_recomputed() {
+        // The one hazard decoupling absorb from drain introduces: a root
+        // dirtied before `ensure_watched` evicted it must NOT be resurrected,
+        // because eviction deliberately dropped its cache and generation.
+        let dirty = HashSet::from([root("/a"), root("/gone")]);
+        let roots = vec![root("/a")];
+        assert_eq!(
+            drain_targets(dirty, false, &roots),
+            HashSet::from([root("/a")])
+        );
     }
 }
