@@ -118,11 +118,11 @@ mod tests {
     }
 
     #[test]
-    fn prescribed_theme_name_is_vellum() {
-        // FleetDefaults::prescribed().theme is canonically
-        // Vellum (the prescribed fleet theme) — this is the
-        // load-bearing assertion that proves the ishou-tokens dep is
-        // actually wired through compile-time.
-        assert_eq!(prescribed_theme_name(), "Vellum");
+    fn prescribed_theme_name_is_pleme_dark() {
+        // FleetDefaults::prescribed().theme is PlemeDark as of
+        // ishou-tokens 0.1.18 — this is the load-bearing assertion that
+        // proves the ishou-tokens dep is actually wired through
+        // compile-time.
+        assert_eq!(prescribed_theme_name(), "PlemeDark");
     }
 }

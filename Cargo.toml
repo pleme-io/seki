@@ -33,7 +33,7 @@ shikumi = { git = "https://github.com/pleme-io/shikumi", features = ["cli"] }
 # time by `seki_core::config::ishou_theme` so the active prescribed
 # FleetTheme variant surfaces in the prompt without any runtime
 # probe. Git source (not yet on crates.io).
-ishou-tokens = { git = "https://github.com/pleme-io/ishou" }
+ishou-tokens = "0.1.18"
 
 [workspace.lints]
 
