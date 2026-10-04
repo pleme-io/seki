@@ -2,30 +2,101 @@
 //! lives in CWD. The channel is read from `rust-toolchain.toml`'s
 //! `[toolchain] channel`, walking CWD up to filesystem root the way
 //! rustup resolves an override; with no toolchain file anywhere the
-//! segment falls back to the symbol-only rendering.
+//! version is the one the `rustc` on `PATH` reports (the compiler a
+//! build here would use: a nix devshell's pin, or the profile's), and
+//! with neither the segment is symbol-only.
 //!
-//! **The fallback prints nothing, and that is the point.** It used to
-//! print the literal `"stable"`, so a repo pinned by nix with no
-//! `rust-toolchain.toml` — every workspace in this fleet — rendered
-//! `via 🦀 stable` having consulted no toolchain at all. A prompt that
-//! asserts an unmeasured fact is worse than a prompt that omits it:
-//! the reader cannot tell the guess from a real pin. Say the channel
-//! only when a file on disk says it.
+//! **Never a value nothing measured.** It used to print the literal
+//! `"stable"`, so a repo pinned by nix with no `rust-toolchain.toml`
+//! rendered `via 🦀 stable` having consulted no toolchain at all. The
+//! version shown is read from a file on disk or from the compiler
+//! itself; when neither answers, nothing is shown.
 
 use seki_core::{
     Module, RenderContext, Segment, SekiResult, config::rust::RustConfig, segment::StyledFragment,
 };
+use std::ffi::OsString;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::sync::Mutex;
+use std::time::Duration;
+
+const RUSTC_BUDGET: Duration = Duration::from_millis(500);
+
+type Probe = Box<dyn Fn(&Path) -> Option<String> + Send + Sync>;
 
 pub struct RustModule {
     cfg: RustConfig,
+    search_path: Option<OsString>,
+    probe: Probe,
+    compiler: Mutex<Option<(PathBuf, Option<String>)>>,
+}
+
+fn rustc_version(rustc: &Path) -> Option<String> {
+    seki_core::exec::bounded_stdout(Command::new(rustc).arg("--version"), RUSTC_BUDGET)
+        .and_then(|out| parse_rustc_version(&out))
 }
 
 impl RustModule {
     pub fn new(cfg: RustConfig) -> Self {
-        Self { cfg }
+        Self {
+            cfg,
+            search_path: None,
+            probe: Box::new(rustc_version),
+            compiler: Mutex::new(None),
+        }
     }
+
+    pub fn with_search_path(cfg: RustConfig, search_path: impl Into<OsString>) -> Self {
+        Self {
+            cfg,
+            search_path: Some(search_path.into()),
+            probe: Box::new(rustc_version),
+            compiler: Mutex::new(None),
+        }
+    }
+
+    #[must_use]
+    pub fn probing_with(
+        mut self,
+        probe: impl Fn(&Path) -> Option<String> + Send + Sync + 'static,
+    ) -> Self {
+        self.probe = Box::new(probe);
+        self
+    }
+
+    fn compiler_version(&self) -> Option<String> {
+        let search = self
+            .search_path
+            .clone()
+            .or_else(|| std::env::var_os("PATH"))?;
+        let rustc = find_on(&search, "rustc")?;
+        let mut cache = self.compiler.lock().ok()?;
+        if let Some((path, version)) = cache.as_ref()
+            && *path == rustc
+        {
+            return version.clone();
+        }
+        let version = (self.probe)(&rustc);
+        *cache = Some((rustc, version.clone()));
+        version
+    }
+}
+
+pub fn find_on(search_path: &OsString, name: &str) -> Option<PathBuf> {
+    std::env::split_paths(search_path)
+        .map(|dir| dir.join(name))
+        .find(|candidate| candidate.is_file())
+        .and_then(|found| fs::canonicalize(found).ok())
+}
+
+pub fn parse_rustc_version(output: &str) -> Option<String> {
+    output
+        .split_whitespace()
+        .nth(1)
+        .filter(|v| v.starts_with(|c: char| c.is_ascii_digit()))
+        .map(str::to_owned)
 }
 
 impl Module for RustModule {
@@ -61,8 +132,9 @@ impl Module for RustModule {
         let mut text = String::new();
         text.push_str(&self.cfg.prefix);
         text.push_str(&self.cfg.symbol);
-        if let Some(channel) = read_toolchain_channel(&ctx.cwd) {
-            text.push_str(&channel);
+        if let Some(version) = read_toolchain_channel(&ctx.cwd).or_else(|| self.compiler_version())
+        {
+            text.push_str(&version);
         }
         // The symbol carries its own trailing space so `⊿ 1.89.0` reads
         // right; with no channel that space would dangle before the suffix.
@@ -160,6 +232,8 @@ pub fn read_toolchain_channel_in(dir: &Path) -> Option<String> {
 mod tests {
     use super::*;
     use std::fs;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     fn td(tag: &str) -> std::path::PathBuf {
         let mut p = std::env::temp_dir();
@@ -266,7 +340,7 @@ mod tests {
         fs::write(dir.join("Cargo.toml"), "[package]\nname='x'\n").unwrap();
         let cfg = RustConfig::default();
         let (prefix, symbol, suffix) = (cfg.prefix.clone(), cfg.symbol.clone(), cfg.suffix.clone());
-        let module = RustModule::new(cfg);
+        let module = RustModule::with_search_path(cfg, "");
         let ctx = RenderContext::from_env().with_cwd(&dir);
 
         let segment = module.render(&ctx).unwrap().expect("segment renders");
@@ -294,13 +368,100 @@ mod tests {
             "[toolchain]\nchannel = \"1.89.0\"\n",
         )
         .unwrap();
-        let module = RustModule::new(RustConfig::default());
+        let (_, probe) = counting(Some("1.98.1"));
+        let module = RustModule::with_search_path(RustConfig::default(), rustc_on_path(&dir))
+            .probing_with(probe);
         let ctx = RenderContext::from_env().with_cwd(&dir);
 
         let segment = module.render(&ctx).unwrap().expect("segment renders");
         let text: String = segment.fragments.iter().map(|f| f.text.as_str()).collect();
 
-        assert!(text.ends_with("1.89.0 "), "unexpected render: {text:?}");
+        assert!(
+            text.ends_with("1.89.0 "),
+            "the toolchain file outranks the compiler: {text:?}"
+        );
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    fn rustc_on_path(dir: &Path) -> PathBuf {
+        let bin = dir.join("bin");
+        fs::create_dir_all(&bin).unwrap();
+        fs::write(bin.join("rustc"), "").unwrap();
+        bin
+    }
+
+    fn counting(
+        says: Option<&'static str>,
+    ) -> (
+        Arc<AtomicUsize>,
+        impl Fn(&Path) -> Option<String> + Send + Sync,
+    ) {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let seen = Arc::clone(&calls);
+        let probe = move |_: &Path| {
+            seen.fetch_add(1, Ordering::SeqCst);
+            says.map(str::to_owned)
+        };
+        (calls, probe)
+    }
+
+    #[test]
+    fn with_no_toolchain_file_the_compiler_on_path_names_the_version_once() {
+        let dir = td("compiler");
+        fs::write(dir.join("Cargo.toml"), "[package]\nname='x'\n").unwrap();
+        let (calls, probe) = counting(Some("1.98.1"));
+        let module = RustModule::with_search_path(RustConfig::default(), rustc_on_path(&dir))
+            .probing_with(probe);
+        let ctx = RenderContext::from_env().with_cwd(&dir);
+
+        for _ in 0..3 {
+            let segment = module.render(&ctx).unwrap().expect("segment renders");
+            let text: String = segment.fragments.iter().map(|f| f.text.as_str()).collect();
+            assert!(text.ends_with("1.98.1 "), "unexpected render: {text:?}");
+        }
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            1,
+            "rustc is probed once per toolchain path"
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_compiler_that_reports_no_version_renders_symbol_only() {
+        let dir = td("mute");
+        fs::write(dir.join("Cargo.toml"), "[package]\nname='x'\n").unwrap();
+        let cfg = RustConfig::default();
+        let (prefix, symbol, suffix) = (cfg.prefix.clone(), cfg.symbol.clone(), cfg.suffix.clone());
+        let (_, probe) = counting(None);
+        let module = RustModule::with_search_path(cfg, rustc_on_path(&dir)).probing_with(probe);
+        let ctx = RenderContext::from_env().with_cwd(&dir);
+        let segment = module.render(&ctx).unwrap().expect("segment renders");
+        let text: String = segment.fragments.iter().map(|f| f.text.as_str()).collect();
+        assert_eq!(text, format!("{prefix}{}{suffix}", symbol.trim_end()));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_real_probe_reads_the_rustc_on_path() {
+        let Some(rustc) = std::env::var_os("PATH").and_then(|p| find_on(&p, "rustc")) else {
+            return;
+        };
+        let version = rustc_version(&rustc).expect("the rustc on PATH reports a version");
+        assert!(version.starts_with(|c: char| c.is_ascii_digit()), "{version:?}");
+    }
+
+    #[test]
+    fn rustc_version_output_is_parsed_strictly() {
+        assert_eq!(
+            parse_rustc_version("rustc 1.98.1 (48a229cea 2026-09-01)").as_deref(),
+            Some("1.98.1")
+        );
+        assert_eq!(
+            parse_rustc_version("rustc 1.99.0-nightly (abc 2026-10-01)").as_deref(),
+            Some("1.99.0-nightly")
+        );
+        assert_eq!(parse_rustc_version("rustc unknown"), None);
+        assert_eq!(parse_rustc_version(""), None);
     }
 }
