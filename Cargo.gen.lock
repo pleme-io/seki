@@ -2,11 +2,11 @@
   "schema_version": 2,
   "cargo_lock_sha256": "9856c096debdaec5dd74eb3ff437fee252de55645d72e00e7affd3bcf5ba9d36",
   "manifest_sha256": {
-    "Cargo.toml": "b808f5e3469f4556c9766082568e5573142d33cf8998bcc1e66e629b06b8dba1",
-    "seki-core/Cargo.toml": "a4940218bec06d602b08f498142e4deb3262ab6a93bc5f8413c1ae32d3f86c89",
-    "seki-modules/Cargo.toml": "b5661a0b19dd5db8cdd7683e877816f3e9148ddd0d884f25a514cc1cbdb7ffd8",
-    "seki-shikumi/Cargo.toml": "b42c09011ed9e5e1d67dac168a8d7551ef4c64c527bde249b20cb9af99a5e82a",
-    "seki/Cargo.toml": "76715667b22bd7a93d9dba99dc26e6c41b6c38270075629923c3e51c38a3b6aa"
+    "Cargo.toml": "7a69ebc30b95ff5f61240c4893b6268045e880bf8e0c690ef6176641a341232b",
+    "seki-core/Cargo.toml": "63e4a54521c77601c94afe42e25f2d0e3ebe1733bd154b917e4f3dfbe31b8aa2",
+    "seki-modules/Cargo.toml": "9dc382cb0f126b8729578624a246fdb5d7aabda90fa9c0630900c34730a890ac",
+    "seki-shikumi/Cargo.toml": "864d90014a9c6a4fe0df219c035a333c84f410d4764b7c88cb3d3e83ebaf7604",
+    "seki/Cargo.toml": "5e57b5c8751eb79476045320b8f688138fe2ae8338675950b31b4e8cd3a95e41"
   },
   "target_resolves": {
     "base": {
