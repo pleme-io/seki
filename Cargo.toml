@@ -10,6 +10,9 @@ license = "MIT"
 repository = "https://github.com/pleme-io/seki"
 homepage = "https://github.com/pleme-io/seki"
 authors = ["pleme-io"]
+readme = "README.md"
+keywords = ["prompt", "shell", "starship", "terminal", "cli"]
+categories = ["command-line-utilities"]
 description = "seki (席) — typed prompt renderer, starship fork wrapped in the pleme-io stack"
 
 [workspace.dependencies]

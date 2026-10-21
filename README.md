@@ -4,6 +4,26 @@ Typed prompt renderer for pleme-io — a starship fork wrapped in the
 full pleme-io stack (`shikumi::TieredConfig`, NixOS/Darwin/HM module
 trio, Pillar 12 typed config surface).
 
+## Install
+
+```bash
+cargo install --git https://github.com/pleme-io/seki seki
+```
+
+Or build from a checkout:
+
+```bash
+git clone https://github.com/pleme-io/seki
+cd seki
+cargo build --release
+```
+
+Nix users can run it straight from the flake:
+
+```bash
+nix run github:pleme-io/seki -- prompt
+```
+
 ## Quick start
 
 ```bash
@@ -38,4 +58,8 @@ Override per-launch: `SEKI_TIER=bare seki prompt`.
 
 - `docs/SEKI.md` — design notes + architecture
 - `module/README.md` — HM / NixOS / Darwin module surface
-- The org-level prime directive: `~/code/github/pleme-io/CLAUDE.md`
+- [pleme-io](https://github.com/pleme-io) — the organization this belongs to
+
+## License
+
+MIT. See `LICENSE`.
