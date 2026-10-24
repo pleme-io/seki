@@ -448,7 +448,10 @@ mod tests {
             return;
         };
         let version = rustc_version(&rustc).expect("the rustc on PATH reports a version");
-        assert!(version.starts_with(|c: char| c.is_ascii_digit()), "{version:?}");
+        assert!(
+            version.starts_with(|c: char| c.is_ascii_digit()),
+            "{version:?}"
+        );
     }
 
     #[test]
