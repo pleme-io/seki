@@ -41,7 +41,7 @@ impl Default for RustConfig {
                 "rust-toolchain".to_owned(),
             ],
             detect_folders: Vec::new(),
-            prefix: "via ".to_owned(),
+            prefix: String::new(),
             suffix: " ".to_owned(),
         }
     }
