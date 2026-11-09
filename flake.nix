@@ -9,8 +9,7 @@
     src = ./.;
     member = "seki";
 
-    # ★ Configuration Management prime directive — see
-    # pleme-io/theory/CONFIGURATION-MANAGEMENT.md. The HM / NixOS / Darwin
+    # ★ Configuration Management prime directive. The HM / NixOS / Darwin
     # module trio is auto-generated from this inline `module` spec, which
     # substrate.rust.tool forwards verbatim to tool-release-flake.nix →
     # module-trio.nix::mkModuleTrio. The bare `substrate.rust.tool { src =

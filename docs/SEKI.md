@@ -52,7 +52,7 @@ renderer turns the typed AST into a string per shell; adding a sixth
 shell is a new `build_<shell>()` constructor, not another
 `format!`-string slinger.
 
-This matches the fleet-wide [typed-emission rule](https://github.com/pleme-io/theory/blob/main/TYPED-EMISSION.md).
+This matches the fleet-wide typed-emission rule.
 
 ## Roadmap
 
